@@ -2,8 +2,16 @@ import customtkinter
 import threading
 import queue
 
+import context_engine
 import optimizer_core
 import conversation_data
+from request_lifecycle import (
+    RequestLifecycle,
+    RequestLifecycleError,
+    REQUEST_GENERATING,
+    REQUEST_CLOSED
+)
+from request_worker import run_ai_worker
 
 from PIL import Image
 from pathlib import Path
@@ -119,9 +127,7 @@ def show_chat_interface(parent):
     settings_window = None
 
     result_queue = queue.Queue()
-
-    request_in_progress = False
-    active_request_id = None
+    request_lifecycle = RequestLifecycle()
 
     for folder in conversation_data.get_all_folders():
         expanded_folder_ids.add(folder["id"])
@@ -135,6 +141,10 @@ def show_chat_interface(parent):
 
         elif sender == "optimizer":
             bubble_color = "#212121"
+            message_alignment = "w"
+
+        else:
+            bubble_color = "#303030"
             message_alignment = "w"
 
         message_frame = customtkinter.CTkFrame(master = messages_container,
@@ -311,7 +321,7 @@ def show_chat_interface(parent):
             success = conversation_data.add_folder_knowledge(folder_id, note)
             if success is False:
                 messagebox.showwarning("Add Knowledge",
-                                       "Could not add note." \
+                                       "Could not add note."
                                        "It may already exist.")
                 return
 
@@ -518,7 +528,7 @@ def show_chat_interface(parent):
 
         if not folder_name:
             messagebox.showwarning(
-                "Bad Entry"
+                "Bad Entry",
                 "Folder name cannot be empty."
             )
             return
@@ -542,7 +552,7 @@ def show_chat_interface(parent):
     def on_new_chat():
         target_folder = conversation_data.get_folder(selected_folder_id)
 
-        if target_folder == None:
+        if target_folder is None:
             messagebox.showerror("Invalid folder",
                                  "Choose a valid folder first.")
             return
@@ -551,7 +561,7 @@ def show_chat_interface(parent):
                                               text = "Enter conversation title: ")
         conversation_title = dialog.get_input()
 
-        if conversation_title == None:
+        if conversation_title is None:
             return
 
         conversation_title = conversation_title.strip()
@@ -589,42 +599,23 @@ def show_chat_interface(parent):
         show_selected_conversation()
         refresh_sidebar()
 
-    def ai_worker(
-            request_id, folder_id, conversation_id, provider_name
-    ):
-        try:
-            response = optimizer_core.generate_conversation_reply(
-                folder_id, conversation_id, provider_name = provider_name
-            )
+    def on_chat_destroyed(event):
+        if event.widget is main_frame:
+            request_lifecycle.close()
 
-            result_queue.put({
-                "request_id": request_id,
-                "folder_id": folder_id,
-                "conversation_id": conversation_id,
-                "status": "success",
-                "response": response
-            })
-
-        except Exception as error:
-            print(f"AI generation error: {error}")
-
-            result_queue.put({
-            "request_id": request_id,
-            "folder_id": folder_id,
-            "conversation_id": conversation_id,
-            "status": "error",
-            "response": "AI generation failed. Please try again."
-            })
-
+    main_frame.bind(
+        "<Destroy>",
+        on_chat_destroyed,
+        add = "+"
+    )
 
     def check_ai_results():
-        nonlocal request_in_progress, active_request_id
 
         try:
             while True:
                 result = result_queue.get_nowait()
 
-                if result["request_id"] != active_request_id:
+                if not request_lifecycle.matches(result["request_id"]):
                     continue
 
                 try:
@@ -671,29 +662,36 @@ def show_chat_interface(parent):
 
                 except Exception as error:
                     print(f"AI result handling error: {error}")
-
+      
                 finally:
-                    request_in_progress = False
-                    active_request_id = None
+                    request_lifecycle.finish(result["request_id"])
 
-                    generating_status.configure(text="")
-                    send_button.configure(state="normal")
+                    if request_lifecycle.state != REQUEST_CLOSED:
+                        generating_status.configure(text = "")
+                        send_button.configure(text = "⬆", state = "normal")
 
         except queue.Empty:
             pass
 
-        if main_frame.winfo_exists():
-            main_frame.after(100, check_ai_results)
-            
-    def send_message():
-        nonlocal request_in_progress, active_request_id
-        print(
-            "SEND DEBUG:",
-            "busy =", request_in_progress,
-            "button =", send_button.cget("state")
-        )
+        except Exception as error:
+            print(f"AI result polling error: {error}")
 
-        if request_in_progress:
+        finally:
+            if request_lifecycle.state != REQUEST_CLOSED:
+                try:
+                    if main_frame.winfo_exists():
+                        main_frame.after(100, check_ai_results)
+
+                except Exception as error:
+                    print(f"Could not reschedule AI polling: {error}")
+                    request_lifecycle.close()
+
+    def send_message():
+
+        if request_lifecycle.state == REQUEST_CLOSED:
+            return
+
+        if request_lifecycle.state == REQUEST_GENERATING:
             return
         
         active_conversation = conversation_data.get_selected_conversation()
@@ -733,22 +731,62 @@ def show_chat_interface(parent):
 
         save_or_warn()
 
+        try:
+            model_messages = context_engine.build_model_messages(
+                folder_id,
+                conversation_id
+            )
+
+            if not isinstance(model_messages, list) or not model_messages:
+                raise ValueError("Could not construct conversation context.")
+
+            last_message = model_messages[-1]
+
+            if not isinstance(last_message, dict):
+                raise ValueError("Invalid final context message.")
+
+            if last_message.get("role") != "user":
+                raise ValueError("Context does not end with a user message.")
+
+        except Exception as error:
+            print(f"Context snapshot error: {error}")
+
+            messagebox.showerror(
+                "Optimizer",
+                "Could not prepare the AI request."
+            )
+            return
+
         request_id = uuid4().hex
 
-        request_in_progress = True
-        active_request_id = request_id
+        try:
+            request_lifecycle.start(
+                request_id,
+                folder_id,
+                conversation_id
+            )
+
+        except RequestLifecycleError as error:
+            print(f"Request lifecycle error: {error}")
+
+            messagebox.showerror("Optimizer",
+                                 "Could not start the AI request.")
+
+            return
 
         generating_status.configure(text = "Generating response with Qwen3 1.7B...")
 
-        send_button.configure(state = "disabled")
+        send_button.configure(text = "⬆", state = "disabled")
 
         thread = threading.Thread(
-            target = ai_worker,
+            target = run_ai_worker,
             args = (
                 request_id,
                 folder_id,
                 conversation_id,
-                "ollama"
+                "ollama",
+                model_messages,
+                result_queue
             ),
             daemon = True
         )
@@ -758,13 +796,13 @@ def show_chat_interface(parent):
         except RuntimeError as error:
             print(f"Could not start AI worker: {error}")
 
-            request_in_progress = False
-            active_request_id = None
+            request_lifecycle.finish(request_id)
 
             generating_status.configure(text = "")
-            send_button.configure(state = "normal")
+            send_button.configure(text = "⬆", state = "normal")
 
-            messagebox.showerror("Optimizer", "Could not start the AI request.")
+            messagebox.showerror("Optimizer",
+                                 "Could not start the AI request.")
 
     new_folder_button.configure(command=on_new_folder)
 

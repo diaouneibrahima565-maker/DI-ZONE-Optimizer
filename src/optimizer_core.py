@@ -1,6 +1,8 @@
 import model_providers
 import context_engine
 
+from copy import deepcopy
+
 def process_message(user_message):
     if not isinstance(user_message, str):
         print("Check if your message is a string.")
@@ -48,6 +50,30 @@ def generate_conversation_reply(
 
     response = model_providers.generate_messages(
         model_messages,
+        provider_name = provider_name
+    )
+
+    return response
+
+def generate_from_snapshot(model_messages, provider_name = "ollama"):
+    if not isinstance(model_messages, list):
+        raise model_providers.ModelProviderError("Invalid context snapshot.")
+
+    if not model_messages:
+        raise model_providers.ModelProviderError("Context snapshot is empty.")
+
+    if provider_name not in ("ollama", "openai"):
+        raise model_providers.ModelProviderError("Unsupported provider.")
+
+    last_message = model_messages[-1]
+
+    if not isinstance(last_message, dict) or last_message["role"] != "user":
+        raise model_providers.ModelProviderError("Snapshot must end with a user message.")
+
+    request_messages = deepcopy(model_messages)
+
+    response = model_providers.generate_messages(
+        request_messages,
         provider_name = provider_name
     )
 
