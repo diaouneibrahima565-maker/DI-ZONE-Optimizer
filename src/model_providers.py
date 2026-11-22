@@ -1,4 +1,6 @@
+import json
 import os
+import subprocess
 import requests
 
 from openai import OpenAI
@@ -9,6 +11,34 @@ OLLAMA_TIMEOUT = 120
 
 class ModelProviderError(Exception):
     pass
+
+def ollama_request(endpoint, payload=None, timeout=OLLAMA_TIMEOUT):
+    url = OLLAMA_URL.rsplit("/", 1)[0] + "/" + endpoint
+    if os.environ.get("OPTIMIZER_USE_WINDOWS_OLLAMA") != "1":
+        if payload is None:
+            response = requests.get(url, timeout=timeout)
+        else:
+            response = requests.post(url, json=payload, timeout=timeout)
+        response.raise_for_status()
+        return response.json()
+
+    # Call Windows loopback from WSL. Chat text travels on stdin.
+    command = ["curl.exe", "--disable", "--silent", "--show-error", "--fail",
+               "--noproxy", "*", "--max-time", str(timeout)]
+    body = None
+    if payload is not None:
+        command.extend(["--header", "Content-Type: application/json", "--data-binary", "@-"])
+        body = json.dumps(payload).encode("utf-8")
+    try:
+        result = subprocess.run([*command, url.replace("localhost", "127.0.0.1")],
+                                input=body, capture_output=True, timeout=timeout + 2)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ModelProviderError("Could not contact Windows Ollama using curl.exe.") from error
+    if result.returncode:
+        detail = result.stderr.decode(errors="replace").strip()
+        raise ModelProviderError(f"Windows Ollama request failed. {detail}")
+    return json.loads(result.stdout)
+
 
 def ollama_generate(prompt):
     if not isinstance(prompt, str) or not prompt.strip():
@@ -27,15 +57,7 @@ def ollama_generate(prompt):
     }
 
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json = payload,
-            timeout = OLLAMA_TIMEOUT
-        )
-
-        response.raise_for_status()
-
-        response_data = response.json()
+        response_data = ollama_request("chat", payload)
 
     except requests.exceptions.RequestException as error:
         raise ModelProviderError("Could not communicate with local Ollama.") from error
@@ -130,15 +152,7 @@ def ollama_generate_messages(messages, model=None):
     }
 
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json = payload,
-            timeout = OLLAMA_TIMEOUT
-        )
-
-        response.raise_for_status()
-
-        response_data = response.json()
+        response_data = ollama_request("chat", payload)
 
     except requests.exceptions.ConnectionError as error:
         raise ModelProviderError(
@@ -216,9 +230,7 @@ CLOUD_ENDPOINTS = {
 
 def list_ollama_models():
     try:
-        response = requests.get("http://localhost:11434/api/tags", timeout=3)
-        response.raise_for_status()
-        models = response.json()["models"]
+        models = ollama_request("tags", timeout=3)["models"]
         if not isinstance(models, list):
             raise ValueError("Expected a list of models.")
         return [m["name"] for m in models if isinstance(m, dict) and isinstance(m.get("name"), str)]

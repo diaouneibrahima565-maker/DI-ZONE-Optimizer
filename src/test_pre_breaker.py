@@ -125,7 +125,7 @@ class PreBreakerTests(unittest.TestCase):
 
     def test_offline_speech_driver_reads_text_and_stops(self):
         engine = Mock()
-        with patch.dict("sys.modules", {"pyttsx3": Mock(init=Mock(return_value=engine))}):
+        with patch.dict("os.environ", {"WSL_DISTRO_NAME": ""}), patch.dict("sys.modules", {"pyttsx3": Mock(init=Mock(return_value=engine))}):
             voice_io.speak("Hello")
         engine.say.assert_called_once_with("Hello")
         engine.runAndWait.assert_called_once()
