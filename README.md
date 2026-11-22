@@ -226,6 +226,12 @@ _Local conversation data is excluded from Git version control._
 
 ## Installation
 
+### Windows laptop check with Python 3.13
+
+From the project root in a Windows VS Code terminal, run `.\check-laptop.cmd`. It creates or reuses `venv\optimizer313`, installs the app, test and voice packages, then runs the suite. It sends a short test message to the standard local Ollama model, starting the installed server if needed. It asks before downloading a missing model or using the microphone. The terminal prints a result for each check.
+
+To launch Optimizer in the same environment, run `.\venv\optimizer313\Scripts\python.exe src\main.py`. You can also select that interpreter in VS Code.
+
 ### Requirements
 
 - Python 3.13 or a compatible version.

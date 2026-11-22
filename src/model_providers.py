@@ -140,6 +140,12 @@ def ollama_generate_messages(messages, model=None):
 
         response_data = response.json()
 
+    except requests.exceptions.ConnectionError as error:
+        raise ModelProviderError(
+            "Could not reach Ollama at localhost:11434. Open Ollama or run 'ollama serve', "
+            "then try again. On Windows, run check-laptop.cmd to test the connection."
+        ) from error
+
     except requests.exceptions.RequestException as error:
         raise ModelProviderError(
             f"Could not communicate with local Ollama. "
