@@ -1,0 +1,14 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Open DI-ZONE Optimizer (Ubuntu)",
+            "type": "process",
+            "command": "bash",
+            "args": ["run-ubuntu.sh"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "presentation": { "reveal": "never" },
+            "problemMatcher": []
+        }
+    ]
+}
