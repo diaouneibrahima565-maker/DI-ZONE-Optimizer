@@ -226,6 +226,10 @@ _Local conversation data is excluded from Git version control._
 
 ## Installation
 
+### Run on Windows with Python 3.13
+
+Open the Windows checkout in VS Code. Choose **Terminal → Run Task → Open DI-ZONE Optimizer**, or run `.\run-windows.cmd` in PowerShell at the project root. The launcher uses `venv\optimizer313` and installs any missing core app dependencies on first use. Start Ollama on Windows for local chat.
+
 ### Windows laptop check with Python 3.13
 
 From the project root in a Windows VS Code terminal, run `.\check-laptop.cmd`. It creates or reuses `venv\optimizer313`, installs the app, test and voice packages, then runs the suite. It sends a short test message to the standard local Ollama model, starting the installed server if needed. It asks before downloading a missing model or using the microphone. The terminal prints a result for each check.
