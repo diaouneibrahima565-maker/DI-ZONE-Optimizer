@@ -1,7 +1,10 @@
 # DI-ZONE Optimizer
 
 **Version:** 0.1.0 — Foundation Release
-**Status:** Functional first version; active development
+**Development branch:** Backend checkpoint through v0.5.0. Breaker v0.6.0 is next.
+
+[Backend checkpoint, examples and next coding task](BACKEND_CHECKPOINT.md)
+
 **Language:** Python
 **Framework:** CustomTkinter
 **AI Architecture:** Local-first, hybrid cloud-ready
@@ -120,7 +123,7 @@ Implemented capabilities include:
 - API response handling.
 - Provider-specific error handling.
 
-Full GUI provider-selection controls are planned for a future update.
+On the pre-Breaker branch, open **Backend → Provider and model** to choose Ollama, Gemini, Groq or OpenAI.
 
 Cloud API usage is optional and may incur charges if enabled.
 
@@ -164,7 +167,8 @@ The data layer includes operations for saving, loading, and validating stored in
 | CustomTkinter     | Desktop interface                |
 | Tkinter           | Supporting GUI functions         |
 | Pillow            | Image assets                     |
-| JSON              | Local data persistence           |
+| JSON              | Chat and model preferences       |
+| SQLite FTS5       | Folder memory and document search |
 | Requests          | Ollama HTTP communication        |
 | Ollama            | Local model runtime              |
 | Qwen3 1.7B        | Default local AI model           |
@@ -182,13 +186,17 @@ The data layer includes operations for saving, loading, and validating stored in
 DI-ZONE Optimizer/
 │
 ├── README.md
+├── BACKEND_CHECKPOINT.md
+├── requirements-voice.txt
 ├── .gitignore
 │
 ├── assets/
 │   └── optimizer_brain_circuit_white.png
 │
 ├── data/
-│   └── conversations.json
+│   ├── conversations.json
+│   ├── settings.json
+│   └── knowledge.sqlite3
 │
 └── src/
     ├── main.py
@@ -198,7 +206,13 @@ DI-ZONE Optimizer/
     ├── context_engine.py
     ├── conversation_data.py
     │
-    ├── test_conversation_data.py
+    ├── settings_data.py
+    ├── knowledge_store.py
+    ├── action_tools.py
+    ├── backend_controls.py
+    ├── voice_io.py
+    ├── test_pre_breaker.py
+    ├── test_converdsation_data.py
     ├── test_context_engine.py
     ├── test_model_providers.py
     ├── test_ollama_provider.py
@@ -221,11 +235,11 @@ _Local conversation data is excluded from Git version control._
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
-cd "DI-ZONE Optimizer"
+git clone https://github.com/diaouneibrahima565-maker/DI-ZONE-Optimizer.git
+cd DI-ZONE-Optimizer
 ```
 
-Replace `<repository-url>` with this repository's GitHub URL.
+To try this checkpoint before it lands on main, run `git switch backend/pre-breaker`.
 
 ### 2. Install Dependencies
 
@@ -261,29 +275,23 @@ python src/main.py
 
 Create or select a conversation and send a message.
 
-### Optional OpenAI Configuration
+### Optional cloud and voice settings
 
-The OpenAI provider uses the `OPENAI_API_KEY` environment variable.
+Ollama is selected on first launch. To use a cloud provider, set its API key in your environment, choose the provider and model under **Backend → Provider and model**, then confirm. The variables are `GEMINI_API_KEY`, `GROQ_API_KEY` and `OPENAI_API_KEY`. Use a model ID your account can access.
 
-API keys must never be hardcoded or committed to GitHub.
+To enable offline English dictation and spoken replies, install the optional audio packages in the same Python environment as Optimizer:
 
-The current desktop chat workflow uses local Ollama inference.
-
----
+```powershell
+python -m pip install -r requirements-voice.txt
+```
 
 ## Development and Testing
 
-Optimizer uses Python's built-in unittest framework, including mocked provider tests.
-
-Run the test modules from the project root:
+Run the full suite from the project root, including the existing conversation-data checks:
 
 ```powershell
-python src/test_conversation_data.py
-python src/test_context_engine.py
-python src/test_model_providers.py
-python src/test_ollama_provider.py
-python src/test_structured_providers.py
-python src/test_optimizer_core.py
+python -m pip install pytest
+python -m pytest -q src
 ```
 
 The test suite is designed to verify:
@@ -322,11 +330,11 @@ Additional automated GUI and concurrency testing is planned.
 
 ### v0.1.x — Reliability and Interface Refinement
 
-- [ ] Expand asynchronous reliability tests.
-- [ ] Improve immutable request-context handling.
-- [ ] Strengthen conversation isolation.
-- [ ] Improve shutdown and error recovery.
-- [ ] Add GUI provider selection.
+- [x] Expand asynchronous reliability tests.
+- [x] Improve immutable request-context handling.
+- [x] Strengthen conversation isolation.
+- [x] Improve shutdown and error recovery.
+- [x] Add GUI provider selection.
 - [ ] Improve inference performance.
 - [ ] Refine AI response presentation.
 
@@ -374,7 +382,7 @@ Its goals include voice-first interaction, authorized computer automation, and d
 - Stronger security and permission systems.
 - Exploration of independently developed AI models, including **1-Plasma**.
 
-These features remain development objectives and are not part of the current release.
+Breaker is the next development milestone. Work on 1-Plasma follows Breaker.
 
 ---
 

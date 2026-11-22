@@ -5,6 +5,7 @@ import queue
 import context_engine
 import optimizer_core
 import conversation_data
+from backend_controls import BackendControls
 from request_lifecycle import (
     RequestLifecycle,
     RequestLifecycleError,
@@ -16,7 +17,7 @@ from request_worker import run_ai_worker
 from PIL import Image
 from pathlib import Path
 from uuid import uuid4
-from tkinter import messagebox
+from tkinter import Misc, messagebox
 
 
 def show_chat_interface(parent):
@@ -117,6 +118,8 @@ def show_chat_interface(parent):
         master = chat_panel, text = "", text_color = "#A3A3A3", font = ("Segoe UI", 12)
     )
     generating_status.grid(row = 3, column = 0, sticky = 'w', padx = 25, pady = (0, 8))
+
+    backend = BackendControls(chat_panel, message_entry)
 
     message_row = 0
 
@@ -602,9 +605,11 @@ def show_chat_interface(parent):
     def on_chat_destroyed(event):
         if event.widget is main_frame:
             request_lifecycle.close()
+            backend.close()
 
-    main_frame.bind(
-        "<Destroy>",
+    # CTkFrame.bind targets its canvas. Observe destruction of the frame itself.
+    Misc.bind(
+        main_frame, "<Destroy>",
         on_chat_destroyed,
         add = "+"
     )
@@ -649,6 +654,7 @@ def show_chat_interface(parent):
                                     and current_chat == conversation_id
                                 ):
                                     display_message(response, "optimizer")
+                                    backend.read_reply(response)
                             else:
                                 messagebox.showerror(
                                     "Optimizer",
@@ -774,7 +780,9 @@ def show_chat_interface(parent):
 
             return
 
-        generating_status.configure(text = "Generating response with Qwen3 1.7B...")
+        provider = backend.settings["active_provider"]
+        model = backend.settings["selected_models"].get(provider)
+        generating_status.configure(text=f"Generating with {provider}…")
 
         send_button.configure(text = "⬆", state = "disabled")
 
@@ -784,10 +792,11 @@ def show_chat_interface(parent):
                 request_id,
                 folder_id,
                 conversation_id,
-                "ollama",
+                provider,
                 model_messages,
                 result_queue
             ),
+            kwargs={"model": model},
             daemon = True
         )
 
