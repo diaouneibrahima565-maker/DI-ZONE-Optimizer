@@ -232,6 +232,14 @@ From the project root in a Windows VS Code terminal, run `.\check-laptop.cmd`. I
 
 To launch Optimizer in the same environment, run `.\venv\optimizer313\Scripts\python.exe src\main.py`. You can also select that interpreter in VS Code.
 
+### Ubuntu or WSL 2
+
+From the checkout, run `bash run-ubuntu.sh` to open Optimizer. On first launch it installs the app packages in a Linux virtual environment. It prefers Ubuntu's Python 3.13 and otherwise uses `python3`. The Windows installation of Python is separate. If the distro's Python needs Tk or venv, install them with `sudo apt update && sudo apt install python3-tk python3-venv`. For a separately installed interpreter, use its matching Tk and venv packages.
+
+Run `bash run-ubuntu.sh --check` for the project tests, local Ollama request and optional voice check. For voice on Ubuntu, install `build-essential python3-dev portaudio19-dev espeak-ng alsa-utils libasound2-plugins` with apt first. Use matching Python development headers if you selected a different interpreter than the distro default.
+
+In WSL, try `curl -fsS http://127.0.0.1:11434/api/tags`. A JSON response means an Ollama server is reachable. With mirrored networking this can be the existing Windows server. If needed, start Ollama inside Ubuntu. The checker can start an installed Linux Ollama and offers to download the project's model if it is missing. See [Ollama for Linux](https://docs.ollama.com/linux) and [WSL networking](https://learn.microsoft.com/windows/wsl/networking).
+
 ### Requirements
 
 - Python 3.13 or a compatible version.

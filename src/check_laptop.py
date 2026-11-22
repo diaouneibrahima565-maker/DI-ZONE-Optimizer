@@ -1,4 +1,4 @@
-"""Set up and exercise Optimizer on the Windows machine that runs this file."""
+"""Set up and exercise Optimizer on the machine that runs this file."""
 
 import os
 import shutil
@@ -21,12 +21,29 @@ def ask(question):
         return False
 
 
+def start_ollama(executable):
+    env = {**os.environ, "OLLAMA_HOST": "127.0.0.1:11434"}
+    if os.name == "nt":
+        print("Starting Ollama on localhost. Leave its server window open.")
+        subprocess.Popen([executable, "serve"], creationflags=subprocess.CREATE_NEW_CONSOLE, env=env)
+        return "the Ollama server window"
+
+    cache = Path(os.getenv("XDG_CACHE_HOME") or Path.home() / ".cache") / "di-zone-optimizer"
+    cache.mkdir(parents=True, exist_ok=True)
+    log = cache / "ollama.log"
+    print(f"Starting Ollama on localhost. Its log is {log}")
+    with log.open("ab") as stream:
+        subprocess.Popen([executable, "serve"], start_new_session=True, env=env,
+                         stdin=subprocess.DEVNULL, stdout=stream, stderr=subprocess.STDOUT)
+    return str(log)
+
+
 def check_ollama():
     import model_providers as models
     import requests
 
     executable = shutil.which("ollama")
-    if not executable and os.getenv("LOCALAPPDATA"):
+    if os.name == "nt" and not executable and os.getenv("LOCALAPPDATA"):
         installed = Path(os.environ["LOCALAPPDATA"]) / "Programs/Ollama/ollama.exe"
         if installed.is_file():
             executable = str(installed)
@@ -37,13 +54,13 @@ def check_ollama():
         if not isinstance(error.__cause__, requests.ConnectionError):
             raise
         if not executable:
-            raise RuntimeError("Open or install Ollama for Windows from https://ollama.com/download/windows, then rerun this check.") from error
-        print("Starting the installed Ollama server on localhost. Leave its window open.")
-        subprocess.Popen(
-            [executable, "serve"],
-            creationflags=subprocess.CREATE_NEW_CONSOLE,
-            env={**os.environ, "OLLAMA_HOST": "127.0.0.1:11434"},
-        )
+            if os.name == "nt":
+                hint = "Open Ollama on Windows, or install it from https://ollama.com/download/windows."
+            else:
+                hint = ("Start Ollama in Ubuntu, or use Windows Ollama if WSL can reach it at "
+                        "127.0.0.1:11434. Linux installation: https://docs.ollama.com/linux")
+            raise RuntimeError(hint) from error
+        server_log = start_ollama(executable)
         for _ in range(20):
             time.sleep(1)
             try:
@@ -52,7 +69,7 @@ def check_ollama():
             except models.ModelProviderError:
                 continue
         else:
-            raise RuntimeError("Ollama still cannot serve localhost:11434. Check its server window.")
+            raise RuntimeError(f"Ollama still cannot serve localhost:11434. Check {server_log}.")
 
     # Use the project's standard local model and a synthetic message.
     model = models.OLLAMA_MODEL
@@ -126,7 +143,10 @@ def main():
     print("\nOptimizer laptop results")
     for label, status in results.items():
         print(f"{status:4}  {label}")
-    print(r"To launch Optimizer with this environment: .\venv\optimizer313\Scripts\python.exe src\main.py")
+    if os.name != "nt":
+        print("To launch Optimizer: bash run-ubuntu.sh")
+    else:
+        print(r"To launch Optimizer with this environment: .\venv\optimizer313\Scripts\python.exe src\main.py")
     return int("FAIL" in results.values())
 
 
