@@ -1,5 +1,6 @@
 import logging
 import optimizer_core
+from model_providers import ModelProviderError
 
 
 logger = logging.getLogger(__name__)
@@ -12,7 +13,8 @@ def run_ai_worker(
     provider_name,
     model_messages,
     result_queue,
-    generate_reply = None
+    generate_reply = None,
+    model = None
 ):
     """
     Generate an AI response in a background worker.
@@ -25,7 +27,10 @@ def run_ai_worker(
         generate_reply = optimizer_core.generate_from_snapshot
 
     try:
-        response = generate_reply(model_messages, provider_name = provider_name)
+        if model is None:
+            response = generate_reply(model_messages, provider_name=provider_name)
+        else:
+            response = generate_reply(model_messages, provider_name=provider_name, model=model)
 
         result = {
             "request_id": request_id,
@@ -33,6 +38,12 @@ def run_ai_worker(
             "conversation_id": conversation_id,
             "status": "success",
             "response": response
+        }
+
+    except ModelProviderError as error:
+        result = {
+            "request_id": request_id, "folder_id": folder_id, "conversation_id": conversation_id,
+            "status": "error", "response": str(error),
         }
 
     except Exception:

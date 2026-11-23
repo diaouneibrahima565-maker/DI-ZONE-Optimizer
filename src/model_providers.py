@@ -1,4 +1,6 @@
+import json
 import os
+import subprocess
 import requests
 
 from openai import OpenAI
@@ -9,6 +11,34 @@ OLLAMA_TIMEOUT = 120
 
 class ModelProviderError(Exception):
     pass
+
+def ollama_request(endpoint, payload=None, timeout=OLLAMA_TIMEOUT):
+    url = OLLAMA_URL.rsplit("/", 1)[0] + "/" + endpoint
+    if os.environ.get("OPTIMIZER_USE_WINDOWS_OLLAMA") != "1":
+        if payload is None:
+            response = requests.get(url, timeout=timeout)
+        else:
+            response = requests.post(url, json=payload, timeout=timeout)
+        response.raise_for_status()
+        return response.json()
+
+    # Call Windows loopback from WSL. Chat text travels on stdin.
+    command = ["curl.exe", "--disable", "--silent", "--show-error", "--fail",
+               "--noproxy", "*", "--max-time", str(timeout)]
+    body = None
+    if payload is not None:
+        command.extend(["--header", "Content-Type: application/json", "--data-binary", "@-"])
+        body = json.dumps(payload).encode("utf-8")
+    try:
+        result = subprocess.run([*command, url.replace("localhost", "127.0.0.1")],
+                                input=body, capture_output=True, timeout=timeout + 2)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise ModelProviderError("Could not contact Windows Ollama using curl.exe.") from error
+    if result.returncode:
+        detail = result.stderr.decode(errors="replace").strip()
+        raise ModelProviderError(f"Windows Ollama request failed. {detail}")
+    return json.loads(result.stdout)
+
 
 def ollama_generate(prompt):
     if not isinstance(prompt, str) or not prompt.strip():
@@ -27,15 +57,7 @@ def ollama_generate(prompt):
     }
 
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json = payload,
-            timeout = OLLAMA_TIMEOUT
-        )
-
-        response.raise_for_status()
-
-        response_data = response.json()
+        response_data = ollama_request("chat", payload)
 
     except requests.exceptions.RequestException as error:
         raise ModelProviderError("Could not communicate with local Ollama.") from error
@@ -121,24 +143,22 @@ def generate_response(prompt, provider_name = "prototype"):
 
     return response
 
-def ollama_generate_messages(messages):
+def ollama_generate_messages(messages, model=None):
     payload = {
-        "model": OLLAMA_MODEL,
+        "model": model or OLLAMA_MODEL,
         "messages": messages,
         "stream": False,
         "think": False
     }
 
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json = payload,
-            timeout = OLLAMA_TIMEOUT
-        )
+        response_data = ollama_request("chat", payload)
 
-        response.raise_for_status()
-
-        response_data = response.json()
+    except requests.exceptions.ConnectionError as error:
+        raise ModelProviderError(
+            "Could not reach Ollama at localhost:11434. Open Ollama or run 'ollama serve', "
+            "then try again. On Windows, run check-laptop.cmd to test the connection."
+        ) from error
 
     except requests.exceptions.RequestException as error:
         raise ModelProviderError(
@@ -167,13 +187,13 @@ def ollama_generate_messages(messages):
 
     return content.strip()
 
-def openai_generate_messages(messages):
+def openai_generate_messages(messages, model=None):
     api_key = os.getenv("OPENAI_API_KEY")
 
     if not api_key or not api_key.strip():
         raise ModelProviderError("OPENAI_API_KEY is not configured.")
 
-    model_name = os.getenv(
+    model_name = model or os.getenv(
       "OPTIMIZER_OPENAI_MODEL",
       "gpt-5-mini"
     ).strip() or "gpt-5-mini"
@@ -202,7 +222,42 @@ def openai_generate_messages(messages):
 
     return response_text
 
-def generate_messages(messages, provider_name = "ollama"):
+CLOUD_ENDPOINTS = {
+    "gemini": ("GEMINI_API_KEY", "https://generativelanguage.googleapis.com/v1beta/openai/"),
+    "groq": ("GROQ_API_KEY", "https://api.groq.com/openai/v1"),
+}
+
+
+def list_ollama_models():
+    try:
+        models = ollama_request("tags", timeout=3)["models"]
+        if not isinstance(models, list):
+            raise ValueError("Expected a list of models.")
+        return [m["name"] for m in models if isinstance(m, dict) and isinstance(m.get("name"), str)]
+    except (requests.RequestException, ValueError, KeyError, TypeError) as error:
+        raise ModelProviderError("Could not list models. Check that Ollama is running.") from error
+
+
+def cloud_chat(messages, provider, model):
+    key_name, base_url = CLOUD_ENDPOINTS[provider]
+    api_key = os.getenv(key_name, "").strip()
+    if not api_key:
+        raise ModelProviderError(f"Set {key_name} to use {provider}.")
+    model = model or os.getenv(f"OPTIMIZER_{provider.upper()}_MODEL", "").strip()
+    if not model:
+        raise ModelProviderError(f"Select a model available in your {provider} account.")
+    try:
+        with OpenAI(api_key=api_key, base_url=base_url, timeout=30, max_retries=0) as client:
+            completion = client.chat.completions.create(model=model, messages=messages)
+            answer = completion.choices[0].message.content
+    except Exception as error:
+        raise ModelProviderError(f"{provider} request failed. Check the model, key and connection.") from error
+    if not isinstance(answer, str) or not answer.strip():
+        raise ModelProviderError(f"{provider} returned no text.")
+    return answer.strip()
+
+
+def generate_messages(messages, provider_name="ollama", model=None):
     if not isinstance(messages, list):
         raise ModelProviderError("Invalid response structure.")
 
@@ -224,10 +279,12 @@ def generate_messages(messages, provider_name = "ollama"):
             raise ModelProviderError("Invalid message content.")
 
     if provider_name == "ollama":
-        return ollama_generate_messages(messages)
+        return ollama_generate_messages(messages, model)
 
     elif provider_name == "openai":
-        return openai_generate_messages(messages)
+        return openai_generate_messages(messages, model)
 
-    else:
-        raise ModelProviderError("Unsupported structured provider.")
+    elif provider_name in CLOUD_ENDPOINTS:
+        return cloud_chat(messages, provider_name, model)
+
+    raise ModelProviderError("Unsupported structured provider.")

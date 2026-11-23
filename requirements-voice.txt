@@ -1,0 +1,2 @@
+SpeechRecognition[audio,pocketsphinx]>=3.14,<4
+pyttsx3>=2.98,<3
