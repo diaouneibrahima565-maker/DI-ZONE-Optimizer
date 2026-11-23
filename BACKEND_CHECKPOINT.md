@@ -35,3 +35,14 @@ JSON holds conversations and model preferences. SQLite holds searchable memories
 ## First Breaker task
 
 Build **one user-approved Breaker turn inside Optimizer**. Start with a selected folder and a typed or dictated draft. Show the action preview, let the user approve or cancel it, and record the result in a visible activity history. Reuse `run_plan` for the first tool and the existing voice controls for input and Stop. The first acceptance check is that cancelling a proposed memory write leaves the folder unchanged and records the cancellation. Add broader desktop actions in later steps. Work on 1-Plasma comes after Breaker.
+
+
+## Breaker design handoff for Code Review Feedback
+
+**Resume cue:** When Ibrahima says **Breaker**, open the [green Breaker design preview](docs/breaker-preview.html) and start from its approval screen in the normal Windows version of Optimizer.
+
+**Look and motion.** Near-black panels, a mint-green accent (`#85F3A6`), and an original circular instrument inspired by JARVIS. The core breathes slowly when idle, responds during push-to-talk, and steadies while waiting for approval. Pair every state with text and honor reduced motion. Keep the accent in one theme value. The user-facing color picker is a later milestone.
+
+**First working turn.** Select a folder, type or dictate a memory, show the exact action and destination, then approve or cancel. Record either outcome in the folder’s activity history. Reuse the existing voice and action modules. Let the user stop listening or speech. The preview simulates this turn in the browser using sample data.
+
+**Then expand.** Add search across imported project notes with source excerpts, a spoken project briefing based on those notes, and approved multi-step actions. Build one capability at a time, verify it through the desktop interface, and keep Plasma after Breaker.
