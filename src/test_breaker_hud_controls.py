@@ -92,7 +92,7 @@ class TestBreakerHUDControls(unittest.TestCase):
 
         self.assertIn(
             "Learn Python",
-            self.hud.memory_preview_label.cget("text")
+            self.hud.memory_preview_text.get("1.0", "end-1c")
         )
 
         self.writer.assert_not_called()
@@ -203,6 +203,46 @@ class TestBreakerHUDControls(unittest.TestCase):
         finally:
             separate_hud.destroy()
 
+    def test_10_long_memory_preview_wraps_and_resizes(self):
+        content = "Remember this: " + ("unbroken" * 250)
+        original_geometry = self.root.geometry()
+        try:
+            self.root.deiconify()
+            self.root.geometry("760x560")
+            self.enter_text(content)
+            self.hud._preview_memory()
+            self.root.update()
+
+            preview = self.hud.memory_preview_text
+            self.assertEqual(preview.get("1.0", "end-1c"), content)
+            self.assertEqual(preview._textbox.cget("wrap"), "word")
+            self.assertGreater(
+                preview._textbox.count("1.0", "end-1c", "displaylines")[0],
+                1,
+            )
+            self.assertTrue(
+                preview.winfo_height() > 80
+                or preview._textbox.yview()[1] < 1
+            )
+
+            previous_width = preview.winfo_width()
+            previous_height = preview.winfo_height()
+            self.root.geometry("1100x650")
+            self.root.update()
+            self.assertGreater(preview.winfo_width(), previous_width)
+            self.assertGreater(
+                preview.winfo_height(),
+                previous_height,
+                (
+                    f"root={self.root.winfo_width()}x{self.root.winfo_height()}, "
+                    f"center={self.hud.center_panel.winfo_height()}, "
+                    f"reserve={self.hud.input_reserve.winfo_height()}"
+                ),
+            )
+        finally:
+            self.root.withdraw()
+            self.root.geometry(original_geometry)
+            self.root.update_idletasks()
 
     def wait_for_hud(self, expected_state, timeout=3):
         deadline = time.monotonic() + timeout

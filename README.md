@@ -1,479 +1,327 @@
 # DI-ZONE Optimizer
 
-**Version:** 0.1.0 — Foundation Release
-**Current application:** Optimizer chat, centralized Settings, and a locally authenticated Breaker Work mode.
-
-[Backend checkpoint, examples and next coding task](BACKEND_CHECKPOINT.md)
-
-**Language:** Python
-**Framework:** CustomTkinter
-**AI Architecture:** Local-first, hybrid cloud-ready
-
----
-
-## Overview
-
-**DI-ZONE Optimizer (Opt)** is a modular desktop AI assistant developed in Python as part of the DI-ZONE ecosystem.
-
-Optimizer is designed to assist with programming, education, research, problem-solving, and everyday tasks.
-
-Its long-term purpose is to evolve into a general-purpose personal AI system capable of combining language models, knowledge, memory, reasoning, and user-authorized tools.
-
-Version 0.1.0 established Optimizer's first functional AI foundation. The
-current local workspace also contains the Breaker workflow described below.
-
-The application can manage independent conversations, apply folder-specific instructions and knowledge, communicate with a local language model through Ollama, and display AI responses inside a graphical desktop interface.
-
-The first version emphasizes modularity, local execution, and extensibility.
-
----
-
-## Features — v0.1.0
-
-### 1. Desktop Chat Interface
-
-Optimizer provides a graphical chat interface built using CustomTkinter.
-
-Implemented features include:
-
-- Dark-themed desktop interface.
-- Sidebar navigation.
-- Conversation selection.
-- User and AI message displays.
-- Persistent conversation histories.
-- AI-generation status indicator.
-- Responsive interface during background model inference.
-
-### 2. Folder and Conversation Management
-
-Conversations can be organized into independent folders.
-
-Supported capabilities include:
-
-- Creating folders.
-- Creating conversations.
-- Selecting conversations.
-- Organizing conversations by subject or purpose.
-- Maintaining separate message histories.
-- Loading saved conversations.
-
-### 3. Shared Folder Instructions
-
-Each folder can contain instructions that influence how the assistant responds.
-
-For example, a programming folder can instruct Optimizer to prioritize technical explanations and implementation guidance.
-
-These instructions become part of the structured context sent to the model.
-
-### 4. Shared Knowledge
-
-Folders can also contain knowledge notes.
-
-Supported operations include:
-
-- Adding notes.
-- Viewing stored notes.
-- Removing notes.
-- Applying shared knowledge to conversations within the folder.
-
-Knowledge notes provide reference information for the local AI model.
-
-### 5. Conversation Context Engine
-
-Optimizer includes a dedicated Context Engine.
-
-It constructs AI requests using:
-
-- Base assistant instructions.
-- Folder instructions.
-- Shared knowledge.
-- Recent conversation messages.
-- The latest user request.
-
-Stored conversation roles are converted into the structured format supported by AI providers.
-
-This enables multi-turn conversations rather than isolated single-message interactions.
-
-### 6. Local AI Integration
-
-Optimizer supports local language-model inference through **Ollama**.
-
-**Current default model: Qwen3 1.7B**
-
-The local model was selected after performance testing on a CPU-based development system.
-
-The provider implementation supports:
-
-- Ollama's local HTTP API.
-- Structured chat messages.
-- Model configuration.
-- Request timeouts.
-- Response validation.
-- Error handling.
-
-Local inference does not require per-request cloud API payments.
-
-### 7. Cloud AI Provider Architecture
-
-The model-provider layer also includes integration with the OpenAI API.
-
-Implemented capabilities include:
-
-- Environment-variable API key configuration.
-- Structured message requests.
-- API response handling.
-- Provider-specific error handling.
-
-Open **Settings → AI Models** to choose Ollama, Gemini, Groq or OpenAI. Cloud
-providers require an environment API key and explicit consent before chat
-context is sent.
-
-Cloud API usage is optional and may incur charges if enabled.
-
-### 8. Asynchronous AI Processing
-
-Optimizer performs model generation using background worker threads.
-
-Implemented mechanisms include:
-
-- Background inference requests.
-- Thread-safe response queues.
-- Main-thread GUI updates.
-- Unique request identifiers.
-- Conversation-specific response handling.
-- Busy-state management.
-- Basic generation-error recovery.
-
-This keeps the desktop interface usable while the local model generates a response.
-
-### 9. Local Data Persistence
-
-The application stores information in JSON format.
-
-Persisted data includes:
-
-- Folders.
-- Conversations.
-- Messages.
-- Folder instructions.
-- Knowledge notes.
-
-The data layer includes operations for saving, loading, and validating stored information.
-
-### 10. Breaker Work Mode
-
-Breaker is available from the application header and requires a locally
-enrolled passphrase. Its current capability is a permission-controlled memory
-write: preview the exact content, approve or cancel it, then view the result.
-It does not currently provide general file operations, research workflows, or
-autonomous computer control. Local authentication is an interface gate, not a
-security boundary against someone with unrestricted access to the computer or
-application files.
-
----
-
-## Technology Stack
-
-| Technology        | Purpose                          |
-| ----------------- | -------------------------------- |
-| Python 3.13       | Core application                 |
-| CustomTkinter     | Desktop interface                |
-| Tkinter           | Supporting GUI functions         |
-| Pillow            | Image assets                     |
-| JSON              | Chat and model preferences       |
-| SQLite FTS5       | Folder memory and document search |
-| Requests          | Ollama HTTP communication        |
-| Ollama            | Local model runtime              |
-| Qwen3 1.7B        | Default local AI model           |
-| OpenAI Python SDK | Optional cloud model integration |
-| Threading         | Background inference             |
-| Queue             | Thread-safe communication        |
-| unittest          | Automated testing                |
-| Git / GitHub      | Version control                  |
-
----
-
-## Project Structure
+**Development status:** v0.6 is implemented. Work on v0.6.1 UI stabilization
+is in progress.
+
+The version labels below are project milestones. They are not all published
+releases or Git tags.
+
+For more detail, see the [backend checkpoint](BACKEND_CHECKPOINT.md), the
+[architecture guide](docs/ARCHITECTURE.md), and the
+[developer guide](docs/DEVELOPER_GUIDE.md).
+
+## 1. Project Overview
+
+DI-ZONE Optimizer is a Python desktop assistant that I am developing as a
+software engineering learning project. I want to understand how a desktop
+application can combine a graphical interface, language-model providers,
+local data, background work, and user-approved actions.
+
+Optimizer is the main application. Breaker is an integrated Work mode within
+Optimizer, not a separate assistant. The current project focuses on chat,
+folder-based knowledge, local and optional cloud models, and a limited,
+approval-controlled memory action.
+
+## 2. Current Features
+
+- **Chat and conversations:** Create folders and conversations, switch between
+  them, and save messages, folder instructions, and simple knowledge notes as
+  JSON data.
+- **Conversation context:** Build model requests from folder instructions,
+  notes, retrieved references, and a bounded portion of recent history.
+- **Model providers:** Use Ollama locally or configure OpenAI, Gemini, or Groq.
+  The default local model is `qwen3:1.7b`. Cloud providers require an API key
+  in the environment and explicit consent before chat context is sent.
+- **Knowledge and tools:** Import `.txt` and `.md` files into a local SQLite
+  full-text search index. The folder-scoped tools support `remember`, `search`,
+  and `forget` steps after showing the plan and asking for confirmation.
+- **Background requests:** Model requests run on worker threads. Results are
+  returned through queues and applied to the interface on Tk's event loop.
+- **Optional voice:** Dictation uses the local PocketSphinx recognizer. Spoken
+  replies use local speech tools. Voice packages and audio devices are
+  optional.
+- **Settings:** Configure providers and models, start voice features, and open
+  Breaker from the shared Settings interface.
+- **UI stabilization in progress:** The current development work improves
+  wrapping, selection, and scrolling in chat, memory previews, and
+  Knowledge & Tools panels. This work is tracked as v0.6.1 and is not described
+  here as a released milestone.
+
+Application data is stored locally. Conversation and provider settings use
+JSON; searchable memories and imported documents use SQLite with FTS5. Local
+data and credentials are excluded from Git.
+
+## 3. Breaker Work Mode
+
+Breaker is a protected workspace inside Optimizer. Its current enabled action
+is a folder-scoped memory write:
+
+1. Enter text and preview the normalized content.
+2. Review it, then explicitly approve or cancel.
+3. If approved, a background worker writes the memory to the selected
+   Optimizer folder and reports the result.
+
+The preview, approval state, executor, and worker are separate parts of the
+workflow. A pending action is not run just because the user leaves the screen.
+
+Breaker requires a locally enrolled passphrase. The application stores a
+salted PBKDF2 hash rather than the passphrase and applies a temporary delay
+after repeated failed attempts. This is a local interface gate, not a security
+boundary against someone with unrestricted access to the computer, process,
+or application files. The delay is held in memory and resets when the
+application restarts. Removing `data/breaker_credentials.json` allows a new
+local enrollment, so someone with file access can also reset the gate.
+
+Breaker currently has no AI chat, general file operations, arbitrary shell
+commands, autonomous computer control, or broad task-execution system. Its
+workflow events are held in memory; persistent activity history is proposed
+work, not an implemented feature.
+
+## 4. Technologies Used
+
+| Technology | Use |
+| --- | --- |
+| Python 3.13 | Application language; the Windows launcher requires Python 3.13. The Ubuntu launcher prefers 3.13 and can use the system `python3`. |
+| CustomTkinter and Tkinter | Desktop interface and event loop |
+| Pillow | Image assets |
+| `requests` | Local Ollama HTTP requests |
+| OpenAI Python SDK | OpenAI requests and the OpenAI-compatible Gemini and Groq endpoints |
+| Ollama | Local model runtime |
+| JSON | Conversation data and provider settings |
+| SQLite with FTS5 | Folder-scoped searchable memories and imported text |
+| `threading`, `queue`, and `subprocess` | Background requests, safe result handoff, and optional voice processes |
+| SpeechRecognition with PocketSphinx | Optional offline dictation |
+| pyttsx3 and eSpeak NG | Optional local spoken replies, depending on platform |
+| `unittest` and `pytest` | Automated tests |
+| Git and GitHub | Version control and project hosting |
+
+Cloud API keys are read from environment variables: `OPENAI_API_KEY`,
+`GEMINI_API_KEY`, and `GROQ_API_KEY`. Optimizer does not save these keys in its
+settings file.
+
+## 5. Project Structure
 
 ```text
-DI-ZONE Optimizer/
-│
-├── README.md
-├── BACKEND_CHECKPOINT.md
-├── requirements-voice.txt
-├── .gitignore
-│
-├── assets/
-│   └── optimizer_brain_circuit_white.png
-│
-├── data/
-│   ├── conversations.json
-│   ├── settings.json
-│   ├── knowledge.sqlite3
-│   └── breaker_credentials.json
-│
+DI-ZONE-Optimizer/
+├── assets/                 # Application images
+├── data/                   # Local runtime data; excluded from Git
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   └── DEVELOPER_GUIDE.md
-│
-└── src/
-    ├── main.py
-    ├── chat_ui.py
-    ├── optimizer_core.py
-    ├── model_providers.py
-    ├── context_engine.py
-    ├── conversation_data.py
-    │
-    ├── settings_data.py
-    ├── knowledge_store.py
-    ├── action_tools.py
-    ├── backend_controls.py
-    ├── voice_io.py
-    ├── breaker_auth.py
-    ├── breaker_hud.py
-    ├── breaker_controller.py
-    ├── breaker_workflow.py
-    ├── breaker_worker.py
-    ├── ui_theme.py
-    ├── ui_icons.py
-    ├── test_breaker_auth.py
-    ├── test_breaker_hud.py
-    └── other test_*.py modules
+├── src/
+│   ├── main.py             # Startup, single root window, and navigation
+│   ├── chat_ui.py          # Chat interface and request orchestration
+│   ├── backend_controls.py # Settings, knowledge tools, and voice controls
+│   ├── conversation_data.py # JSON-backed folders, chats, and messages
+│   ├── context_engine.py   # Model context construction
+│   ├── model_providers.py  # Ollama and cloud-provider requests
+│   ├── knowledge_store.py  # SQLite FTS5 memories and documents
+│   ├── breaker_*.py        # Breaker access, approval, execution, and worker
+│   ├── voice_io.py         # Optional local voice operations
+│   └── test_*.py           # Automated tests
+├── run-windows.cmd
+├── run-ubuntu.sh
+├── check-laptop.cmd
+├── requirements-voice.txt  # Optional voice dependencies
+├── BACKEND_CHECKPOINT.md
+└── README.md
 ```
 
-_Local conversation data is excluded from Git version control._
+The `data/` directory is created for local use and is ignored by Git. It can
+contain conversation JSON, settings, the SQLite knowledge database, and the
+Breaker credential verifier.
 
----
+## 6. Installation and Setup
 
-## Installation
+### Windows
 
-### Run on Windows with Python 3.13
-
-Open the Windows checkout in VS Code. Choose **Terminal → Run Task → Open DI-ZONE Optimizer**, or run `.\run-windows.cmd` in PowerShell at the project root. The launcher uses `venv\optimizer313` and installs any missing core app dependencies on first use. Start Ollama on Windows for local chat.
-
-### Windows laptop check with Python 3.13
-
-From the project root in a Windows VS Code terminal, run `.\check-laptop.cmd`. It creates or reuses `venv\optimizer313`, installs the app, test and voice packages, then runs the suite. It sends a short test message to the standard local Ollama model, starting the installed server if needed. It asks before downloading a missing model or using the microphone. The terminal prints a result for each check.
-
-To launch Optimizer in the same environment, run `.\venv\optimizer313\Scripts\python.exe src\main.py`. You can also select that interpreter in VS Code.
-
-### Ubuntu or WSL 2
-
-From the checkout, run `bash run-ubuntu.sh` to open Optimizer. On first launch it installs the app packages in a Linux virtual environment. It prefers Ubuntu's Python 3.13 and otherwise uses `python3`. The Windows installation of Python is separate. If the distro's Python needs Tk or venv, install them with `sudo apt update && sudo apt install python3-tk python3-venv`. For a separately installed interpreter, use its matching Tk and venv packages.
-
-Run `bash run-ubuntu.sh --check` for the project tests, local Ollama request and optional voice check. After setup, `bash run-ubuntu.sh --recheck` retries just Ollama, speaker playback and microphone dictation. Each failure includes its reason in the final summary. For voice on Ubuntu, install `build-essential python3-dev portaudio19-dev espeak-ng alsa-utils libasound2-plugins` with apt first. Use matching Python development headers if you selected a different interpreter than the distro default.
-
-In WSL, try `curl -fsS http://127.0.0.1:11434/api/tags`. A JSON response means an Ollama server is reachable. With mirrored networking this can be the existing Windows server. If Ubuntu cannot reach loopback directly, the launcher also probes the Windows loopback address using `curl.exe`. Open Ollama from the Windows Start menu before launching or rechecking. If needed, start Ollama inside Ubuntu. The checker can start an installed Linux Ollama and offers to download the project's model if it is missing. See [Ollama for Linux](https://docs.ollama.com/linux) and [WSL networking](https://learn.microsoft.com/windows/wsl/networking).
-
-### Requirements
-
-- Python 3.13 or a compatible version.
-- Ollama.
-- Python project dependencies.
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/diaouneibrahima565-maker/DI-ZONE-Optimizer.git
-cd DI-ZONE-Optimizer
-```
-
-### 2. Install Dependencies
+Clone the repository and open PowerShell in its directory:
 
 ```powershell
-python -m pip install customtkinter pillow requests openai
+git clone https://github.com/diaouneibrahima565-maker/DI-ZONE-Optimizer.git
+cd DI-ZONE-Optimizer
+py -3.13 --version
+.\run-windows.cmd
 ```
 
-### 3. Install Ollama
-
-Download Ollama from:
-
-[https://ollama.com](https://ollama.com)
-
-### 4. Download the Local Model
+The launcher creates or reuses `venv\optimizer313`, checks for the core
+packages, and starts the application. Install Ollama separately, start it,
+and download the default model:
 
 ```powershell
 ollama pull qwen3:1.7b
 ```
 
-Verify:
+To launch directly after setup:
 
 ```powershell
-ollama list
+.\venv\optimizer313\Scripts\python.exe -X utf8 src\main.py
 ```
 
-Ensure Ollama is running before starting Optimizer.
+For a machine check, run `.\check-laptop.cmd`. It installs the test and
+optional voice packages, runs the project tests, checks for a local Ollama
+reply, and offers optional speaker and microphone checks. It may ask before
+downloading the model.
 
-### 5. Launch the Application
+To use a cloud provider, set its API key in the process environment, select
+the provider and an available model in **Settings → AI Models**, and confirm
+the cloud-use prompt. Cloud use may incur charges.
+
+### Ubuntu or WSL
+
+The launcher prefers `python3.13`, otherwise it uses `python3`, and creates
+its environment under
+`${XDG_DATA_HOME:-$HOME/.local/share}/di-zone-optimizer/`. Install Tk and
+`venv` for the selected Python. For Ubuntu's system Python, for example:
+
+```bash
+sudo apt update
+sudo apt install python3-tk python3-venv
+bash run-ubuntu.sh
+```
+
+If you use a separately installed Python version, install the matching Tk,
+`venv`, and (when needed) development-header packages for that version.
+On WSL 2, a graphical display must be available. The launcher can use an
+Ollama server running on Windows through WSL loopback when it is reachable;
+otherwise, start or install Ollama in the environment where Optimizer runs.
+
+The Ubuntu launcher also supports:
+
+```bash
+bash run-ubuntu.sh --check
+bash run-ubuntu.sh --recheck
+```
+
+`--check` runs the project tests and checks Ollama and optional voice
+components. It can ask before downloading a missing model or using audio
+devices. `--recheck` retries the Ollama and optional audio checks without
+repeating the full setup.
+
+Voice is optional. On Ubuntu or WSL, the audio tools may require:
+
+```bash
+sudo apt install build-essential python3-dev portaudio19-dev espeak-ng alsa-utils libasound2-plugins
+```
+
+Use the development headers that match the Python interpreter selected by the
+launcher. To install the Python voice packages manually on Windows, use:
 
 ```powershell
-python src/main.py
+.\venv\optimizer313\Scripts\python.exe -m pip install -r requirements-voice.txt
 ```
 
-Create or select a conversation and send a message.
+## 7. Running Tests
 
-### Optional cloud and voice settings
-
-Ollama is selected on first launch. To use a cloud provider, set its API key in your environment, choose the provider and model under **Settings → AI Models**, then confirm. The variables are `GEMINI_API_KEY`, `GROQ_API_KEY` and `OPENAI_API_KEY`. Use a model ID your account can access.
-
-To enable offline English dictation and spoken replies, install the optional audio packages in the same Python environment as Optimizer:
+After setting up the Windows environment, run:
 
 ```powershell
-python -m pip install -r requirements-voice.txt
+.\venv\optimizer313\Scripts\python.exe -m pip install pytest
+.\venv\optimizer313\Scripts\python.exe -m pytest -q src
 ```
 
-## Development and Testing
+On Ubuntu or WSL, first run `bash run-ubuntu.sh` once to create the project
+environment. Then run the suite with that environment's Python:
 
-Run the full suite from the project root, including the existing conversation-data checks:
-
-```powershell
-python -m pip install pytest
-python -m pytest -q src
+```bash
+if command -v python3.13 >/dev/null 2>&1; then
+    base_python=python3.13
+else
+    base_python=python3
+fi
+python_version=$("$base_python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+optimizer_python="$data_home/di-zone-optimizer/venv-$python_version/bin/python"
+"$optimizer_python" -m pip install pytest
+"$optimizer_python" -m pytest -q src
 ```
 
-The test suite is designed to verify:
+The unit tests use mocks for provider calls and do not require cloud API keys
+or a live language model. Tk-based interface tests need a graphical display;
+they skip when one is unavailable. The laptop check is separate from the
+unit-test command because it also makes a live local Ollama request and can
+test audio devices.
 
-- JSON data management.
-- Folder and conversation operations.
-- Context construction.
-- Message validation.
-- Provider request handling.
-- Core response generation.
-- Error handling.
+## 8. Development Roadmap
 
-Breaker workflow, reactor, worker-shutdown, and authentication checks are
-included in the current suite. The Tk-based HUD tests skip when no graphical
-display is available.
+These are project milestones, not claims that each version was published as a
+release.
 
----
+### v0.1 — Initial foundation — implemented
 
-## Development Roadmap
+- Created the desktop chat interface and initial local-model connection.
+- Added folders, conversations, JSON persistence, and basic context handling.
 
-### v0.1.0 — AI Foundation
+### v0.2–v0.5 — Backend development — implemented across these milestones
 
-**Completed functional first version**
+- Expanded model-provider routing, context construction, and request
+  validation.
+- Added folder knowledge, SQLite FTS5 search, and text/Markdown document
+  import.
+- Added background request workers, saved provider settings, and explicit
+  cloud consent.
+- Added optional local dictation and spoken replies.
+- Added a confirmed `remember` / `search` / `forget` plan for folder knowledge.
 
-- [x] Establish project structure.
-- [x] Create CustomTkinter chat interface.
-- [x] Implement folder and conversation management.
-- [x] Implement JSON persistence.
-- [x] Add folder-specific instructions.
-- [x] Add shared knowledge notes.
-- [x] Build modular model providers.
-- [x] Integrate local AI through Ollama.
-- [x] Build the Context Engine.
-- [x] Integrate context-aware model requests.
-- [x] Implement background AI processing.
-- [x] Display real AI responses in the GUI.
-- [x] Support consecutive local AI messages.
+### v0.6 — Breaker Work Mode — implemented
 
-### v0.1.x — Reliability and Interface Refinement
+- Added the integrated, locally authenticated Breaker workspace.
+- Implemented one preview-and-approve memory-write action.
 
-- [x] Expand asynchronous reliability tests.
-- [x] Improve immutable request-context handling.
-- [x] Strengthen conversation isolation.
-- [x] Improve shutdown and error recovery.
-- [x] Add GUI provider selection.
-- [ ] Improve inference performance.
-- [ ] Refine AI response presentation.
+### v0.6.1 — UI stabilization — in progress
 
-### v0.2.0 — Memory Engine
+- Improve wrapping, resizing, copy, and scrolling in chat, memory previews,
+  and Knowledge & Tools.
+- Continue checking usability at different window sizes and display scaling.
 
-- Persistent assistant memory.
-- More advanced context organization.
-- Conversation summarization.
-- Memory retrieval and management.
-- Token-budget optimization.
+### v0.6.2 — Proposed
 
-### v0.3.0 — Knowledge Engine
+- Add persistent activity history with a clear scope and retention policy.
 
-- Document-based knowledge.
-- Information retrieval.
-- Research assistance.
-- Knowledge organization and indexing.
+### v0.7 and later — Proposed
 
-### v0.4.0 — Agent Engine
+- Explore carefully permissioned AI-assisted tools and integrations.
+- Keep actions reviewable, bounded, and tested before exposing them in the UI.
 
-- Modular action tools.
-- Permission-controlled operations.
-- User confirmation for sensitive actions.
-- Multi-step task execution.
+## 9. What I Am Learning
 
-### v0.5.0 — Voice Interaction
+Through this project I am studying:
 
-- Speech recognition.
-- Voice-based commands.
-- Spoken responses.
-- Voice conversation workflows.
+- Python modules and separation between interface, data, and service code.
+- Event-driven desktop interfaces and Tkinter geometry management.
+- JSON and SQLite persistence, input validation, and full-text search.
+- Model-provider interfaces, API errors, and conversation context.
+- Threads, queues, and keeping slow work off the GUI event loop.
+- Authentication, authorization, explicit approval, and their limitations.
+- Unit testing with mocks, debugging, and maintaining a Git project.
 
-### Breaker Work Mode — Current limited implementation
+## 10. AI Assistance and Development Transparency
 
-The current Breaker workspace previews, approves, and writes folder-scoped
-memories. General-purpose computer automation, file operations, research
-workflows, and AI task execution remain future work.
+DI-ZONE Optimizer is a personal software engineering and learning project. I
+guide its vision, goals, feature requirements, and development direction. I
+use AI tools, including GitHub Copilot and ChatGPT, to assist with
+implementation, debugging, code review, documentation, and software design.
 
-### Long-Term Goals
+The automated test files in this repository were generated with AI
+assistance. AI-generated code and tests can be incomplete or incorrect, and
+passing tests do not prove that the application is free of bugs or that every
+feature has been manually verified. I do not claim to have personally written
+every line of code or every test. My goal is to understand the software,
+improve my programming skills, and become more independent in designing,
+debugging, and maintaining it.
 
-- Hybrid local/cloud AI orchestration.
-- Advanced reasoning and planning.
-- Multimodal interaction.
-- Robotics and simulation integrations.
-- Stronger security and permission systems.
-- Exploration of independently developed AI models, including **1-Plasma**.
+## 11. Future Goals
 
-The next work should expand the application only after each capability has an
-explicit permission model, tests, and documented limitations.
+My long-term goal is to keep improving Optimizer as a modular assistant while
+keeping users in control of its actions. Possible future work includes
+persistent activity history, carefully approved AI-assisted tools, and
+integrations with other DI-ZONE projects. These are goals, not current
+features.
 
----
-
-## DI-ZONE Ecosystem
-
-Optimizer is intended to become the central AI assistant within the broader DI-ZONE ecosystem.
-
-Potential integrations include:
-
-- **DI-ZONE HUB** — Application launcher and dashboard.
-- **DI-ZONE Student** — Academic management.
-- **DI-ZONE Robot Simulator** — Future robotics and simulation environment.
-
-Integration with these modules will be developed incrementally.
-
----
-
-## What I Am Learning
-
-Developing Optimizer has helped me gain experience with:
-
-- Python application architecture.
-- Desktop interface development.
-- CustomTkinter.
-- Modular programming.
-- API communication.
-- Local language-model integration.
-- AI provider abstractions.
-- Conversation-context construction.
-- JSON storage and validation.
-- Multithreading.
-- Thread-safe queues.
-- Exception handling.
-- Mock-based unit testing.
-- Debugging and performance optimization.
-- Git and GitHub.
-
-## Development Philosophy
-
-DI-ZONE Optimizer follows an incremental development approach.
-
-Each release should establish reliable functionality before expanding the assistant's capabilities.
-
-The system is intended to remain modular and maintain clear boundaries between the user interface, AI models, knowledge, memory, and tools.
-
-**The goal is to create an extensible personal AI assistant that increases user capability while preserving user control.**
+Developing **1-Plasma** is a long-term research goal. It is not part of the
+current Optimizer implementation or the near-term Breaker stabilization work.
 
 ## License
 
-No open-source license has been selected. All rights are reserved unless a license is added.
-
----
-
-**DI-ZONE Optimizer — The AI foundation of the DI-ZONE ecosystem.**
+No open-source license has been selected. Until one is added, all rights are
+reserved.

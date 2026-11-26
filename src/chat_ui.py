@@ -1,3 +1,4 @@
+import math
 import customtkinter
 import threading
 import queue
@@ -29,6 +30,7 @@ from ui_theme import (
     SURFACE,
     TEXT,
 )
+from ui_text import create_read_only_textbox, split_markdown_code_blocks
 
 
 def show_chat_interface(parent, on_open_breaker=None):
@@ -101,6 +103,7 @@ def show_chat_interface(parent, on_open_breaker=None):
     conversation_frame = customtkinter.CTkScrollableFrame(master = chat_panel, corner_radius = 12, fg_color=BACKGROUND)
     conversation_frame.grid(row = 1, column = 0, sticky = 'nsew', padx = 20, pady = 10)
     conversation_frame.grid_columnconfigure(0, weight = 1)
+    conversation_canvas = conversation_frame._parent_canvas
 
     messages_container = customtkinter.CTkFrame(master = conversation_frame, fg_color = "transparent", corner_radius = 0)
     messages_container.grid(row = 0, column = 0, sticky = "ew")
@@ -192,6 +195,7 @@ def show_chat_interface(parent, on_open_breaker=None):
     microphone_button.configure(command=backend.dictate)
 
     message_row = 0
+    message_text_widgets = []
 
     selected_folder_id = conversation_data.ACTIVE_SELECTION["folder_id"]
 
@@ -205,35 +209,114 @@ def show_chat_interface(parent, on_open_breaker=None):
     for folder in conversation_data.get_all_folders():
         expanded_folder_ids.add(folder["id"])
 
-    def display_message(text, sender):
+    def message_width(text, maximum_width):
+        longest_line = max((len(line) for line in text.split("\n")), default=0)
+        return min(maximum_width, max(120, longest_line * 8 + 32))
+
+    def message_height(text, width, code_block=False):
+        characters_per_line = max(16, (width - 24) // 8)
+        if code_block:
+            line_count = max(1, len(text.split("\n")))
+        else:
+            line_count = sum(
+                max(1, math.ceil(len(line) / characters_per_line))
+                for line in text.split("\n")
+            )
+        return min(240, max(54, line_count * 20 + 16))
+
+    def update_message_dimensions(_event=None):
+        available_width = conversation_canvas.winfo_width()
+        if available_width <= 1:
+            return
+
+        maximum_width = max(120, min(680, available_width - 70))
+        for textbox, text, code_block in message_text_widgets:
+            width = message_width(text, maximum_width)
+            height = message_height(text, width, code_block)
+            if textbox.cget("width") != width or textbox.cget("height") != height:
+                textbox.configure(width=width, height=height)
+
+    def scroll_to_bottom():
+        conversation_frame.after_idle(
+            lambda: conversation_canvas.yview_moveto(1.0)
+        )
+
+    def display_message(text, sender, force_scroll=False):
         nonlocal message_row
 
         if sender == "user":
             bubble_color = "#173C29"
             message_text_color = TEXT
-            message_alignment = "e"
-
         elif sender == "optimizer":
             bubble_color = SURFACE
             message_text_color = TEXT
-            message_alignment = "w"
 
         else:
             bubble_color = ELEVATED_SURFACE
             message_text_color = TEXT
-            message_alignment = "w"
 
-        message_frame = customtkinter.CTkFrame(master = messages_container,
-                                               corner_radius = 12,
-                                               fg_color = bubble_color)
-        message_frame.grid(row = message_row, column = 0, sticky = message_alignment, padx = 15, pady = 8)
+        follow_scroll = force_scroll or conversation_canvas.yview()[1] >= 0.98
+        row_frame = customtkinter.CTkFrame(
+            master=messages_container, fg_color="transparent", corner_radius=0
+        )
+        row_frame.grid(row=message_row, column=0, sticky="ew", padx=15, pady=8)
 
-        message_label = customtkinter.CTkLabel(master=message_frame, text=text, text_color=message_text_color,
-                                               wraplength=680,
-                                               justify = "left")
-        message_label.grid(row = 0, column = 0, padx = 15, pady = 10)
+        if sender == "user":
+            row_frame.grid_columnconfigure(0, weight=1)
+            bubble_column = 1
+            bubble_sticky = "e"
+        else:
+            row_frame.grid_columnconfigure(1, weight=1)
+            bubble_column = 0
+            bubble_sticky = "w"
+
+        message_frame = customtkinter.CTkFrame(
+            master=row_frame, corner_radius=12, fg_color=bubble_color
+        )
+        message_frame.grid(row=0, column=bubble_column, sticky=bubble_sticky)
+        message_frame.grid_columnconfigure(0, weight=1)
+
+        available_width = conversation_canvas.winfo_width()
+        maximum_width = (
+            max(120, min(680, available_width - 70))
+            if available_width > 1
+            else 680
+        )
+        for segment_row, (segment, code_block) in enumerate(
+            split_markdown_code_blocks(text)
+        ):
+            width = message_width(segment, maximum_width)
+            textbox = create_read_only_textbox(
+                message_frame,
+                segment,
+                width=width,
+                height=message_height(segment, width, code_block),
+                fg_color=ELEVATED_SURFACE if code_block else bubble_color,
+                text_color=message_text_color,
+                font=("Consolas", 12) if code_block else ("Segoe UI", 13),
+                border_width=0,
+                border_spacing=8,
+                corner_radius=0,
+                scrollbar_button_color=BORDER,
+                scrollbar_button_hover_color=SECONDARY,
+                wrap="none" if code_block else "word",
+            )
+            textbox.grid(
+                row=segment_row, column=0, sticky="ew", pady=(0, 4)
+            )
+            message_text_widgets.append((textbox, segment, code_block))
+
+        if follow_scroll:
+            scroll_to_bottom()
 
         message_row += 1
+
+    Misc.bind(
+        conversation_canvas,
+        "<Configure>",
+        update_message_dimensions,
+        add="+",
+    )
 
     def clear_chat_display():
         nonlocal message_row
@@ -241,6 +324,7 @@ def show_chat_interface(parent, on_open_breaker=None):
         for widget in messages_container.winfo_children():
             widget.destroy()
 
+        message_text_widgets.clear()
         message_row = 0
 
     def show_selected_conversation():
@@ -273,6 +357,8 @@ def show_chat_interface(parent, on_open_breaker=None):
 
         for message in messages:
             display_message(message["content"], message["role"])
+
+        scroll_to_bottom()
 
     def save_or_warn():
         success = conversation_data.save_data()
@@ -475,10 +561,21 @@ def show_chat_interface(parent, on_open_breaker=None):
                 note_frame.grid(row = index, column = 0, sticky = 'ew', pady = 4)
                 note_frame.grid_columnconfigure(0, weight = 1)
 
-                note_label = customtkinter.CTkLabel(master = note_frame, text = note,
-                                                    text_color = TEXT, wraplength = 350,
-                                                    justify = "left", anchor = "w")
-                note_label.grid(row = 0, column = 0, sticky = "ew", padx = 10, pady = 8)
+                note_textbox = create_read_only_textbox(
+                    note_frame,
+                    note,
+                    width=350,
+                    height=min(180, max(52, (note.count("\n") + 1) * 22 + 16)),
+                    fg_color=ELEVATED_SURFACE,
+                    text_color=TEXT,
+                    font=("Segoe UI", 12),
+                    border_width=0,
+                    border_spacing=6,
+                    corner_radius=0,
+                    scrollbar_button_color=BORDER,
+                    scrollbar_button_hover_color=SECONDARY,
+                )
+                note_textbox.grid(row=0, column=0, sticky="ew", padx=8, pady=4)
 
                 delete_button = customtkinter.CTkButton(master = note_frame, text = "✕",
                                                         width = 32, height = 32, fg_color = ELEVATED_SURFACE,
@@ -816,7 +913,7 @@ def show_chat_interface(parent, on_open_breaker=None):
                                  "Your message could not be added. Try again.")
             return
 
-        display_message(user_message, "user")
+        display_message(user_message, "user", force_scroll=True)
 
         message_entry.delete(0, "end")
 

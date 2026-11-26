@@ -7,6 +7,7 @@ import queue
 from breaker_actions import BreakerActionError
 from breaker_approval import ActionApprovalError
 from breaker_worker import BreakerActionWorker
+from ui_text import create_read_only_textbox, set_read_only_text
 
 
 # ============================================================
@@ -231,12 +232,12 @@ class BreakerHUD(ctk.CTkFrame):
 
         self.center_panel.grid_rowconfigure(
             1,
-            weight=1
+            weight=3
         )
 
         self.center_panel.grid_rowconfigure(
             2,
-            weight=0,
+            weight=1,
             minsize=175
         )
 
@@ -416,7 +417,6 @@ class BreakerHUD(ctk.CTkFrame):
             pady=(0, 6)
         )
 
-        self.input_reserve.grid_propagate(False)
 
     # ========================================================
     # REACTOR GEOMETRY
@@ -1008,23 +1008,30 @@ class BreakerHUD(ctk.CTkFrame):
         )
 
         # Proposal preview
-        self.memory_preview_label = ctk.CTkLabel(
+        self.memory_preview_text = create_read_only_textbox(
             self.command_panel,
-            text="No pending action",
-            text_color=MUTED_TEXT,
+            "No pending action",
+            width=550,
+            height=80,
+            text_color=TEXT_COLOR,
+            fg_color=SURFACE_COLOR,
             font=ctk.CTkFont(size=12),
-            wraplength=550,
-            anchor="w"
+            border_width=0,
+            border_spacing=6,
+            corner_radius=0,
+            scrollbar_button_color=BORDER_GREEN,
+            scrollbar_button_hover_color=MEDIUM_GREEN,
         )
 
-        self.memory_preview_label.grid(
+        self.memory_preview_text.grid(
             row=1,
             column=0,
             columnspan=2,
-            sticky="ew",
+            sticky="nsew",
             padx=12,
             pady=4
         )
+        self.command_panel.grid_rowconfigure(1, weight=1)
 
         # Approval / cancellation row
         decision_row = ctk.CTkFrame(
@@ -1107,8 +1114,8 @@ class BreakerHUD(ctk.CTkFrame):
         self._pending_action_id = proposal["action_id"]
 
         # Show the exact normalized content.
-        self.memory_preview_label.configure(
-            text=proposal["action_data"]["content"]
+        set_read_only_text(
+            self.memory_preview_text, proposal["action_data"]["content"]
         )
 
         self.approve_button.configure(
@@ -1153,9 +1160,7 @@ class BreakerHUD(ctk.CTkFrame):
             )
         )
 
-        self.memory_preview_label.configure(
-            text="No pending action"
-        )
+        set_read_only_text(self.memory_preview_text, "No pending action")
 
     # ========================================================
     # APPROVE MEMORY

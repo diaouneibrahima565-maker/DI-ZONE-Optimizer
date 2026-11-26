@@ -298,20 +298,56 @@ class BackendControls:
             return
         window = tk.Toplevel(self.parent)
         window.title("Folder knowledge and tools")
+        window.geometry("760x560")
+        window.minsize(480, 360)
         ttk.Label(window, text=conversation_data.get_folder(folder)["name"]).pack(
             anchor="w", padx=12
         )
         ttk.Label(
             window, text="One step per line: remember TEXT, search WORDS, or forget MEMORY_ID"
         ).pack(padx=12)
-        steps = tk.Text(window, width=62, height=5, wrap="word")
-        steps.pack(fill="x", padx=12, pady=6)
-        output = tk.Text(window, width=62, height=10, wrap="word", state="disabled")
+
+        steps_frame = ttk.Frame(window)
+        steps_frame.pack(fill="x", padx=12, pady=6)
+        steps_frame.grid_columnconfigure(0, weight=1)
+        steps = tk.Text(steps_frame, width=62, height=5, wrap="word")
+        steps_scrollbar = ttk.Scrollbar(
+            steps_frame, orient="vertical", command=steps.yview
+        )
+        steps.configure(yscrollcommand=steps_scrollbar.set)
+        steps.grid(row=0, column=0, sticky="nsew")
+        steps_scrollbar.grid(row=0, column=1, sticky="ns")
+
+        output_frame = ttk.Frame(window)
+        output_frame.pack(fill="both", expand=True, padx=12, pady=8)
+        output_frame.grid_columnconfigure(0, weight=1)
+        output_frame.grid_rowconfigure(0, weight=1)
+        output = tk.Text(
+            output_frame, width=62, height=10, wrap="word", state="disabled"
+        )
+        output_scrollbar = ttk.Scrollbar(
+            output_frame, orient="vertical", command=output.yview
+        )
+        code_scrollbar = ttk.Scrollbar(
+            output_frame, orient="horizontal", command=output.xview
+        )
+        output.configure(
+            yscrollcommand=output_scrollbar.set,
+            xscrollcommand=code_scrollbar.set,
+        )
+        output.grid(row=0, column=0, sticky="nsew")
+        output_scrollbar.grid(row=0, column=1, sticky="ns")
 
         def show(text):
             output.configure(state="normal")
             output.delete("1.0", "end")
             output.insert("1.0", text)
+            if "```" in text:
+                output.configure(wrap="none")
+                code_scrollbar.grid(row=1, column=0, sticky="ew")
+            else:
+                output.configure(wrap="word")
+                code_scrollbar.grid_remove()
             output.configure(state="disabled")
 
         def use_draft():
@@ -355,7 +391,7 @@ class BackendControls:
                     show(str(error))
 
         row = ttk.Frame(window)
-        row.pack()
+        row.pack(fill="x")
         for title, command in (
             ("Use chat draft", use_draft),
             ("Review plan…", run),
@@ -363,7 +399,6 @@ class BackendControls:
             ("Import document…", import_file),
         ):
             ttk.Button(row, text=title, command=command).pack(side="left", padx=4)
-        output.pack(fill="both", expand=True, padx=12, pady=8)
 
     def dictate(self):
         if selected_chat()[1] is None:
