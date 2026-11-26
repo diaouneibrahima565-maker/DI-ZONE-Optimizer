@@ -1,0 +1,14 @@
+"""Shared colors and typography for the Optimizer desktop interface."""
+
+BACKGROUND = "#0B0F0D"
+SIDEBAR = "#101713"
+SURFACE = "#131A16"
+ELEVATED_SURFACE = "#1B2520"
+PRIMARY = "#4EF294"
+SECONDARY = "#2B9C62"
+BORDER = "#275638"
+TEXT = "#F3F7F4"
+SECONDARY_TEXT = "#A0B5A8"
+ERROR = "#E6A078"
+
+FONT_FAMILY = "Segoe UI"

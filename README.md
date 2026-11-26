@@ -1,7 +1,7 @@
 # DI-ZONE Optimizer
 
 **Version:** 0.1.0 — Foundation Release
-**Development branch:** Backend checkpoint through v0.5.0. Breaker v0.6.0 is next.
+**Current application:** Optimizer chat, centralized Settings, and a locally authenticated Breaker Work mode.
 
 [Backend checkpoint, examples and next coding task](BACKEND_CHECKPOINT.md)
 
@@ -19,7 +19,8 @@ Optimizer is designed to assist with programming, education, research, problem-s
 
 Its long-term purpose is to evolve into a general-purpose personal AI system capable of combining language models, knowledge, memory, reasoning, and user-authorized tools.
 
-**Version 0.1.0 establishes Optimizer's first functional AI foundation.**
+Version 0.1.0 established Optimizer's first functional AI foundation. The
+current local workspace also contains the Breaker workflow described below.
 
 The application can manage independent conversations, apply folder-specific instructions and knowledge, communicate with a local language model through Ollama, and display AI responses inside a graphical desktop interface.
 
@@ -123,7 +124,9 @@ Implemented capabilities include:
 - API response handling.
 - Provider-specific error handling.
 
-On the pre-Breaker branch, open **Backend → Provider and model** to choose Ollama, Gemini, Groq or OpenAI.
+Open **Settings → AI Models** to choose Ollama, Gemini, Groq or OpenAI. Cloud
+providers require an environment API key and explicit consent before chat
+context is sent.
 
 Cloud API usage is optional and may incur charges if enabled.
 
@@ -156,6 +159,16 @@ Persisted data includes:
 - Knowledge notes.
 
 The data layer includes operations for saving, loading, and validating stored information.
+
+### 10. Breaker Work Mode
+
+Breaker is available from the application header and requires a locally
+enrolled passphrase. Its current capability is a permission-controlled memory
+write: preview the exact content, approve or cancel it, then view the result.
+It does not currently provide general file operations, research workflows, or
+autonomous computer control. Local authentication is an interface gate, not a
+security boundary against someone with unrestricted access to the computer or
+application files.
 
 ---
 
@@ -196,7 +209,12 @@ DI-ZONE Optimizer/
 ├── data/
 │   ├── conversations.json
 │   ├── settings.json
-│   └── knowledge.sqlite3
+│   ├── knowledge.sqlite3
+│   └── breaker_credentials.json
+│
+├── docs/
+│   ├── ARCHITECTURE.md
+│   └── DEVELOPER_GUIDE.md
 │
 └── src/
     ├── main.py
@@ -211,13 +229,16 @@ DI-ZONE Optimizer/
     ├── action_tools.py
     ├── backend_controls.py
     ├── voice_io.py
-    ├── test_pre_breaker.py
-    ├── test_converdsation_data.py
-    ├── test_context_engine.py
-    ├── test_model_providers.py
-    ├── test_ollama_provider.py
-    ├── test_structured_providers.py
-    └── test_optimizer_core.py
+    ├── breaker_auth.py
+    ├── breaker_hud.py
+    ├── breaker_controller.py
+    ├── breaker_workflow.py
+    ├── breaker_worker.py
+    ├── ui_theme.py
+    ├── ui_icons.py
+    ├── test_breaker_auth.py
+    ├── test_breaker_hud.py
+    └── other test_*.py modules
 ```
 
 _Local conversation data is excluded from Git version control._
@@ -257,8 +278,6 @@ git clone https://github.com/diaouneibrahima565-maker/DI-ZONE-Optimizer.git
 cd DI-ZONE-Optimizer
 ```
 
-To try this checkpoint before it lands on main, run `git switch backend/pre-breaker`.
-
 ### 2. Install Dependencies
 
 ```powershell
@@ -295,7 +314,7 @@ Create or select a conversation and send a message.
 
 ### Optional cloud and voice settings
 
-Ollama is selected on first launch. To use a cloud provider, set its API key in your environment, choose the provider and model under **Backend → Provider and model**, then confirm. The variables are `GEMINI_API_KEY`, `GROQ_API_KEY` and `OPENAI_API_KEY`. Use a model ID your account can access.
+Ollama is selected on first launch. To use a cloud provider, set its API key in your environment, choose the provider and model under **Settings → AI Models**, then confirm. The variables are `GEMINI_API_KEY`, `GROQ_API_KEY` and `OPENAI_API_KEY`. Use a model ID your account can access.
 
 To enable offline English dictation and spoken replies, install the optional audio packages in the same Python environment as Optimizer:
 
@@ -322,7 +341,9 @@ The test suite is designed to verify:
 - Core response generation.
 - Error handling.
 
-Additional automated GUI and concurrency testing is planned.
+Breaker workflow, reactor, worker-shutdown, and authentication checks are
+included in the current suite. The Tk-based HUD tests skip when no graphical
+display is available.
 
 ---
 
@@ -385,11 +406,11 @@ Additional automated GUI and concurrency testing is planned.
 - Spoken responses.
 - Voice conversation workflows.
 
-### v0.6.0 — Breaker Mode
+### Breaker Work Mode — Current limited implementation
 
-Breaker Mode is a planned advanced interaction environment inspired by intelligent personal computer assistants.
-
-Its goals include voice-first interaction, authorized computer automation, and deeper DI-ZONE integration.
+The current Breaker workspace previews, approves, and writes folder-scoped
+memories. General-purpose computer automation, file operations, research
+workflows, and AI task execution remain future work.
 
 ### Long-Term Goals
 
@@ -400,7 +421,8 @@ Its goals include voice-first interaction, authorized computer automation, and d
 - Stronger security and permission systems.
 - Exploration of independently developed AI models, including **1-Plasma**.
 
-Breaker is the next development milestone. Work on 1-Plasma follows Breaker.
+The next work should expand the application only after each capability has an
+explicit permission model, tests, and documented limitations.
 
 ---
 

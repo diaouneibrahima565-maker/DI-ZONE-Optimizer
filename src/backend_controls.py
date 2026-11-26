@@ -14,7 +14,18 @@ import conversation_data
 import knowledge_store
 import model_providers
 import settings_data
+import customtkinter
 from action_tools import run_plan
+from ui_theme import (
+    BACKGROUND,
+    BORDER,
+    ELEVATED_SURFACE,
+    PRIMARY,
+    SECONDARY,
+    SECONDARY_TEXT,
+    SURFACE,
+    TEXT,
+)
 
 ERRORS = (OSError, ValueError, sqlite3.Error)
 
@@ -25,11 +36,22 @@ def selected_chat():
 
 
 class BackendControls:
-    def __init__(self, parent, entry):
+    def __init__(
+        self,
+        parent,
+        entry,
+        status_label=None,
+        microphone_button=None,
+        microphone_icon=None,
+        open_breaker_callback=None,
+    ):
         self.parent = parent
         self.entry = entry
         self.audio = None
         self.closed = False
+        self.microphone_button = microphone_button
+        self.microphone_icon = microphone_icon
+        self.open_breaker_callback = open_breaker_callback
         self.spoken_replies = tk.BooleanVar(master=parent, value=False)
         try:
             self.settings = settings_data.load_settings()
@@ -39,44 +61,199 @@ class BackendControls:
                 "Provider settings", f"{error} Using Ollama for this session.", parent=parent
             )
 
-        menu = tk.Menu(parent, tearoff=False)
-        menu.add_command(label="Provider and model…", command=self.provider_dialog)
-        menu.add_command(label="Folder knowledge and tools…", command=self.tools_dialog)
-        menu.add_separator()
-        menu.add_command(label="Dictate one message", command=self.dictate)
-        menu.add_command(label="Stop microphone or speech", command=self.stop)
-        menu.add_checkbutton(label="Read new replies aloud", variable=self.spoken_replies)
-        bar = ttk.Frame(parent)
-        bar.grid(row=0, column=0, sticky="e", padx=20)
-        self.status = ttk.Label(bar)
-        self.status.pack(side="left")
-        ttk.Menubutton(bar, text="Backend", menu=menu).pack(side="left")
+        self.status = status_label or ttk.Label(parent)
+        self.model_selector = None
+        self._model_labels = {}
+
+    def attach_model_selector(self, selector):
+        self.model_selector = selector
+        self._refresh_model_selector()
+
+    def model_options(self):
+        """Return only provider/model pairs already configured by the user."""
+        options = {}
+        for provider in settings_data.PROVIDERS:
+            model = self.settings["selected_models"].get(provider)
+            if isinstance(model, str) and model.strip():
+                options[f"{provider.upper()} · {model}"] = (provider, model)
+        return options
+
+    def _refresh_model_selector(self):
+        if self.model_selector is None:
+            return
+        options = self.model_options()
+        self._model_labels = options
+        labels = list(options)
+        self.model_selector.configure(values=labels or ["Configure a model in Settings"])
+        active_provider = self.settings["active_provider"]
+        active_model = self.settings["selected_models"].get(active_provider)
+        active_label = next(
+            (
+                label for label, selection in options.items()
+                if selection == (active_provider, active_model)
+            ),
+            "Configure a model in Settings",
+        )
+        self.model_selector.set(active_label)
+        self.model_selector.configure(state="normal" if labels else "disabled")
+
+    def select_model(self, label):
+        selection = self._model_labels.get(label)
+        if selection is None:
+            self._refresh_model_selector()
+            return
+        provider, model = selection
+        allowed = provider == "ollama" or messagebox.askyesno(
+            "Use cloud provider?",
+            f"Send future chat context and retrieved folder notes to {provider}? "
+            "Your account may be billed.",
+            parent=self.parent,
+        )
+        if not allowed:
+            self._refresh_model_selector()
+            return
+        try:
+            updated = settings_data.update_model_preference(
+                self.settings, provider, model, allow_cloud=allowed
+            )
+            settings_data.save_settings(updated)
+        except ERRORS as error:
+            messagebox.showerror("Settings", str(error), parent=self.parent)
+            self._refresh_model_selector()
+            return
+        self.settings = updated
+        self._refresh_model_selector()
+
+    def open_settings(self):
+        """Show the modern settings hub while reusing existing backend features."""
+        window = customtkinter.CTkToplevel(self.parent)
+        window.title("Optimizer Settings")
+        window.geometry("520x600")
+        window.configure(fg_color=BACKGROUND)
+        window.grid_columnconfigure(0, weight=1)
+
+        customtkinter.CTkLabel(
+            window,
+            text="Settings",
+            text_color=TEXT,
+            font=("Segoe UI", 22, "bold"),
+        ).grid(row=0, column=0, sticky="w", padx=24, pady=(22, 4))
+        customtkinter.CTkLabel(
+            window,
+            text="Models, voice, folder knowledge and tools",
+            text_color=SECONDARY_TEXT,
+        ).grid(row=1, column=0, sticky="w", padx=24, pady=(0, 16))
+
+        actions = (
+            ("General", "Keep the application on its dark green theme.",
+             self._keep_dark_appearance),
+            ("AI Models", "Choose a provider, configure a model, or discover Ollama models.",
+             self.provider_dialog),
+            ("Knowledge & Tools", "Manage folder notes, search memory, and import documents.",
+             self.tools_dialog),
+            ("Voice", "Start offline dictation or stop active audio.",
+             self._open_voice_settings),
+            ("Breaker", "Unlock the permission-controlled Work workspace.",
+             self._open_breaker),
+        )
+        for row, (title, description, command) in enumerate(actions, start=2):
+            card = customtkinter.CTkFrame(
+                window, fg_color=SURFACE, corner_radius=12,
+                border_color=BORDER, border_width=1,
+            )
+            card.grid(row=row, column=0, sticky="ew", padx=20, pady=6)
+            card.grid_columnconfigure(0, weight=1)
+            customtkinter.CTkLabel(
+                card, text=title, text_color=PRIMARY,
+                font=("Segoe UI", 15, "bold"),
+            ).grid(row=0, column=0, sticky="w", padx=14, pady=(12, 2))
+            customtkinter.CTkLabel(
+                card, text=description, text_color=SECONDARY_TEXT,
+                wraplength=310, justify="left",
+            ).grid(row=1, column=0, sticky="w", padx=14, pady=(0, 12))
+            customtkinter.CTkButton(
+                card, text="Open", command=command,
+                fg_color=ELEVATED_SURFACE, hover_color=SECONDARY,
+                text_color=TEXT, width=76,
+            ).grid(row=0, column=1, rowspan=2, padx=12)
+
+        customtkinter.CTkCheckBox(
+            window,
+            text="Read new replies aloud",
+            variable=self.spoken_replies,
+            text_color=TEXT,
+            fg_color=SECONDARY,
+            hover_color=PRIMARY,
+        ).grid(row=7, column=0, sticky="w", padx=24, pady=(14, 8))
+        customtkinter.CTkButton(
+            window,
+            text="Stop microphone or speech",
+            command=self.stop,
+            fg_color="transparent",
+            hover_color=ELEVATED_SURFACE,
+            text_color=SECONDARY_TEXT,
+        ).grid(row=8, column=0, sticky="e", padx=20, pady=(2, 18))
+        window.transient(self.parent.winfo_toplevel())
+
+    def _open_voice_settings(self):
+        if selected_chat()[1] is None:
+            messagebox.showinfo("Voice", "Select a conversation first.", parent=self.parent)
+            return
+        self.start_audio("listen")
+
+    @staticmethod
+    def _keep_dark_appearance():
+        customtkinter.set_appearance_mode("Dark")
+
+    def _open_breaker(self):
+        if self.open_breaker_callback is None:
+            messagebox.showinfo(
+                "Breaker", "Open Breaker from the application header.", parent=self.parent
+            )
+            return
+        self.open_breaker_callback()
 
     def provider_dialog(self):
-        window = tk.Toplevel(self.parent)
+        window = customtkinter.CTkToplevel(self.parent)
         window.title("Model provider")
+        window.configure(fg_color=BACKGROUND)
         provider = tk.StringVar(window, self.settings["active_provider"])
         model = tk.StringVar(window)
-        ttk.Label(window, text="Provider").pack(anchor="w", padx=12)
-        choices = ttk.Combobox(
-            window, textvariable=provider, values=settings_data.PROVIDERS, state="readonly"
+        customtkinter.CTkLabel(
+            window, text="Provider", text_color=TEXT
+        ).pack(anchor="w", padx=16, pady=(16, 2))
+        choices = customtkinter.CTkOptionMenu(
+            window, variable=provider, values=list(settings_data.PROVIDERS),
+            command=lambda selected_provider: update_fields(selected_provider),
+            fg_color=ELEVATED_SURFACE, button_color=SECONDARY,
+            button_hover_color=PRIMARY, text_color=TEXT,
         )
-        choices.pack(fill="x", padx=12, pady=4)
-        ttk.Label(window, text="Model ID").pack(anchor="w", padx=12)
-        models = ttk.Combobox(window, textvariable=model, width=36)
-        models.pack(fill="x", padx=12, pady=4)
+        choices.pack(fill="x", padx=16, pady=4)
+        customtkinter.CTkLabel(
+            window, text="Model ID", text_color=TEXT
+        ).pack(anchor="w", padx=16, pady=(8, 2))
+        models = customtkinter.CTkComboBox(
+            window, variable=model, values=(), fg_color=SURFACE,
+            border_color=BORDER, text_color=TEXT, button_color=SECONDARY,
+            button_hover_color=PRIMARY,
+        )
+        models.pack(fill="x", padx=16, pady=4)
 
-        def update_fields(event=None):
-            name = provider.get()
+        def update_fields(selected_provider=None):
+            name = selected_provider or provider.get()
             model.set(self.settings["selected_models"].get(name) or "")
-            models.configure(values=())
             discover.configure(state="normal" if name == "ollama" else "disabled")
 
         def discover_models():
             try:
-                models.configure(values=model_providers.list_ollama_models())
-                models.focus_set()
-                models.event_generate("<Down>")
+                available_models = model_providers.list_ollama_models()
+                models.configure(values=available_models)
+                if available_models:
+                    model.set(available_models[0])
+                else:
+                    messagebox.showinfo(
+                        "Ollama", "No installed Ollama models were found.", parent=window
+                    )
             except model_providers.ModelProviderError as error:
                 messagebox.showerror("Ollama", str(error), parent=window)
 
@@ -98,13 +275,20 @@ class BackendControls:
                 messagebox.showerror("Settings", str(error), parent=window)
                 return
             self.settings = updated
+            self._refresh_model_selector()
             window.destroy()
 
-        discover = ttk.Button(window, text="List installed Ollama models", command=discover_models)
+        discover = customtkinter.CTkButton(
+            window, text="List installed Ollama models",
+            command=discover_models, fg_color=ELEVATED_SURFACE,
+            hover_color=SECONDARY, text_color=TEXT,
+        )
         discover.pack(padx=12, pady=4)
-        choices.bind("<<ComboboxSelected>>", update_fields)
         update_fields()
-        ttk.Button(window, text="Save", command=save).pack(padx=12, pady=8)
+        customtkinter.CTkButton(
+            window, text="Save", command=save,
+            fg_color=PRIMARY, hover_color=SECONDARY, text_color=BACKGROUND,
+        ).pack(padx=12, pady=(8, 16))
         window.transient(self.parent.winfo_toplevel())
         window.grab_set()
 
@@ -214,6 +398,8 @@ class BackendControls:
         self.status.configure(
             text="Listening…" if operation == "listen" else "Reading reply aloud…"
         )
+        if operation == "listen" and self.microphone_button is not None:
+            self.microphone_button.configure(text="Stop", image=None, command=self.stop)
 
         result = Queue()
 
@@ -236,6 +422,7 @@ class BackendControls:
                 return
             self.audio = None
             self.status.configure(text="")
+            self._reset_microphone_button()
             if failed:
                 messagebox.showwarning(
                     "Voice", error or "The audio device was unavailable.", parent=self.parent
@@ -248,6 +435,12 @@ class BackendControls:
 
         self.parent.after(100, finish)
 
+    def _reset_microphone_button(self):
+        if self.microphone_button is not None and not self.closed:
+            self.microphone_button.configure(
+                text="", image=self.microphone_icon, command=self.dictate
+            )
+
     def stop(self):
         if self.audio is not None:
             if self.audio.poll() is None:
@@ -255,6 +448,7 @@ class BackendControls:
             self.audio = None
             if not self.closed:
                 self.status.configure(text="")
+                self._reset_microphone_button()
 
     def close(self):
         self.closed = True

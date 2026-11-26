@@ -3,7 +3,6 @@ import threading
 import queue
 
 import context_engine
-import optimizer_core
 import conversation_data
 from backend_controls import BackendControls
 from request_lifecycle import (
@@ -18,23 +17,35 @@ from PIL import Image
 from pathlib import Path
 from uuid import uuid4
 from tkinter import Misc, messagebox
+from ui_icons import create_icon
+from ui_theme import (
+    BACKGROUND,
+    BORDER,
+    ELEVATED_SURFACE,
+    PRIMARY,
+    SECONDARY,
+    SECONDARY_TEXT,
+    SIDEBAR,
+    SURFACE,
+    TEXT,
+)
 
 
-def show_chat_interface(parent):
-    main_frame = customtkinter.CTkFrame(master = parent, fg_color = "#171717")
+def show_chat_interface(parent, on_open_breaker=None):
+    main_frame = customtkinter.CTkFrame(master=parent, fg_color=BACKGROUND)
     main_frame.grid(row = 0, column = 0, sticky = 'nsew')
     main_frame.grid_columnconfigure(0, weight = 0)
     main_frame.grid_columnconfigure(1, weight = 1)
     main_frame.grid_rowconfigure(0, weight = 1)
 
 
-    sidebar_frame = customtkinter.CTkFrame(master = main_frame, width = 260, corner_radius = 0, fg_color = "#171717")
+    sidebar_frame = customtkinter.CTkFrame(master=main_frame, width=260, corner_radius=0, fg_color=SIDEBAR)
     sidebar_frame.grid(row = 0, column = 0, sticky = 'ns')
     sidebar_frame.grid_propagate(False)
     sidebar_frame.grid_columnconfigure(0, weight = 1)
     sidebar_frame.grid_rowconfigure(2, weight = 1)
 
-    chat_panel = customtkinter.CTkFrame(master = main_frame, fg_color = "#212121", corner_radius = 0)
+    chat_panel = customtkinter.CTkFrame(master=main_frame, fg_color=BACKGROUND, corner_radius=0)
     chat_panel.grid(row = 0, column = 1, sticky = 'nsew')
     chat_panel.grid_columnconfigure(0, weight = 1)
     chat_panel.grid_rowconfigure(1, weight = 1)
@@ -52,15 +63,11 @@ def show_chat_interface(parent):
     except OSError:
         print("optimizer icon not found. Using fallback icon.")
 
-    title_text = (
-        " Optimizer"
-        if optimizer_icon is not None
-        else "🧠  Optimizer"
-    )
+    title_text = "  Optimizer" if optimizer_icon is not None else "DI-ZONE Optimizer"
 
     sidebar_title = customtkinter.CTkLabel(master = sidebar_frame,
                                            text = title_text, image = optimizer_icon,
-                                           compound = "left", text_color = "#F8FAFC",
+                                           compound = "left", text_color = TEXT,
                                            font = ("Segoe UI", 20, "bold"), fg_color = "transparent")
     sidebar_title.grid(row = 0, column = 0, sticky = "w", padx = 20, pady = 20)
 
@@ -69,17 +76,17 @@ def show_chat_interface(parent):
     sidebar_actions.grid_columnconfigure(0, weight = 1)
     sidebar_actions.grid_columnconfigure(1, weight = 1)
 
-    new_folder_button = customtkinter.CTkButton(master = sidebar_actions, text = "+ Folder",
-                                                fg_color = '#303030', hover_color = '#404040',
-                                                text_color = "#F8FAFC", height = 36, corner_radius = 8, width = 100)
+    new_folder_button = customtkinter.CTkButton(master=sidebar_actions, text="+ Folder",
+                                                fg_color=ELEVATED_SURFACE, hover_color=BORDER,
+                                                text_color=TEXT, height=36, corner_radius=8, width=100)
     new_folder_button.grid(row = 0, column = 0, sticky = 'ew', padx = 4, pady = 4)
 
-    new_chat_button = customtkinter.CTkButton(master = sidebar_actions, text = "+ Chat",
-                                              fg_color = "#0E7490", hover_color = '#155E75',
-                                              text_color = "#FFFFFF", height = 36, corner_radius = 8, width = 100)
+    new_chat_button = customtkinter.CTkButton(master=sidebar_actions, text="+ New chat",
+                                              fg_color=SECONDARY, hover_color=PRIMARY,
+                                              text_color=BACKGROUND, height=36, corner_radius=8, width=100)
     new_chat_button.grid(row = 0, column = 1, sticky = 'ew', padx = 4, pady = 4)
 
-    folders_scroll_frame = customtkinter.CTkScrollableFrame(master = sidebar_frame, fg_color = '#171717', corner_radius = 0)
+    folders_scroll_frame = customtkinter.CTkScrollableFrame(master=sidebar_frame, fg_color=SIDEBAR, corner_radius=0)
     folders_scroll_frame.grid(row = 2, column = 0, sticky = 'nsew', padx = 5)
     folders_scroll_frame.grid_columnconfigure(0, weight = 1)
 
@@ -87,11 +94,11 @@ def show_chat_interface(parent):
     folders_container.grid(row = 0, column = 0, sticky = 'ew')
     folders_container.grid_columnconfigure(0, weight = 1)
 
-    title_label = customtkinter.CTkLabel(master = chat_panel, text = "Optimizer", text_color = "#F8FAFC",
+    title_label = customtkinter.CTkLabel(master = chat_panel, text = "Optimizer", text_color = TEXT,
                                          font = ("Segoe UI", 20, "bold"))
     title_label.grid(row = 0, column = 0, sticky = 'w', padx = 20, pady = 10)
 
-    conversation_frame = customtkinter.CTkScrollableFrame(master = chat_panel, corner_radius = 12, fg_color = "#212121")
+    conversation_frame = customtkinter.CTkScrollableFrame(master = chat_panel, corner_radius = 12, fg_color=BACKGROUND)
     conversation_frame.grid(row = 1, column = 0, sticky = 'nsew', padx = 20, pady = 10)
     conversation_frame.grid_columnconfigure(0, weight = 1)
 
@@ -99,27 +106,90 @@ def show_chat_interface(parent):
     messages_container.grid(row = 0, column = 0, sticky = "ew")
     messages_container.grid_columnconfigure(0, weight = 1)
 
-    input_frame = customtkinter.CTkFrame(master = chat_panel, corner_radius = 15, fg_color = "#2F2F2F")
+    input_frame = customtkinter.CTkFrame(master = chat_panel, corner_radius = 15, fg_color=SURFACE)
     input_frame.grid(row = 2, column = 0, sticky = 'ew', padx = 20, pady = 10)
     input_frame.grid_columnconfigure(0, weight = 1)
+    input_frame.grid_columnconfigure(1, weight=0)
+    input_frame.grid_columnconfigure(2, weight=0)
+    input_frame.grid_columnconfigure(3, weight=0)
 
-    message_entry = customtkinter.CTkEntry(master = input_frame, placeholder_text = "Message Optimizer...", fg_color = "#262626",
-                                           border_color = '#3A424E', text_color = '#F8FAFC',
-                                           placeholder_text_color = '#929BA8', corner_radius = 15)
-    message_entry.grid(row = 0, column = 0, sticky = 'ew', padx = (20, 8), pady = 10)
+    message_entry = customtkinter.CTkEntry(
+        master=input_frame,
+        placeholder_text="Message Optimizer...",
+        fg_color=ELEVATED_SURFACE,
+        border_color=BORDER,
+        text_color=TEXT,
+        placeholder_text_color=SECONDARY_TEXT,
+        corner_radius=15,
+        height=44,
+    )
+    message_entry.grid(row=0, column=0, sticky="ew", padx=(14, 8), pady=10)
 
-    send_button = customtkinter.CTkButton(master = input_frame, text = "⬆", width = 44,
-                                          height = 44, corner_radius = 22, fg_color = '#0E7490',
-                                          hover_color = '#155E75', text_color = '#FFFFFF',
-                                          font = ("Segoe UI", 20, "bold"))
-    send_button.grid(row = 0, column = 1, sticky = 'e', padx = (8, 20), pady = 10)
+    microphone_icon = create_icon("mic", SECONDARY_TEXT)
+    microphone_button = customtkinter.CTkButton(
+        master=input_frame,
+        text="",
+        image=microphone_icon,
+        width=40,
+        height=40,
+        corner_radius=12,
+        fg_color="transparent",
+        hover_color=ELEVATED_SURFACE,
+        text_color=TEXT,
+    )
+    microphone_button.grid(row=0, column=2, padx=4, pady=10)
+
+    send_icon = create_icon("send", BACKGROUND)
+    send_button = customtkinter.CTkButton(
+        master=input_frame,
+        text="",
+        image=send_icon,
+        width=42,
+        height=42,
+        corner_radius=12,
+        fg_color=PRIMARY,
+        hover_color=SECONDARY,
+        text_color=BACKGROUND,
+    )
+    send_button.grid(row=0, column=3, sticky="e", padx=(4, 12), pady=10)
+
+    voice_status = customtkinter.CTkLabel(
+        master=chat_panel, text="", text_color=PRIMARY, font=("Segoe UI", 11)
+    )
+    voice_status.grid(row=3, column=0, sticky="w", padx=25, pady=(0, 2))
 
     generating_status = customtkinter.CTkLabel(
-        master = chat_panel, text = "", text_color = "#A3A3A3", font = ("Segoe UI", 12)
+        master=chat_panel, text="", text_color=SECONDARY_TEXT, font=("Segoe UI", 12)
     )
-    generating_status.grid(row = 3, column = 0, sticky = 'w', padx = 25, pady = (0, 8))
+    generating_status.grid(row=4, column=0, sticky="w", padx=25, pady=(0, 8))
 
-    backend = BackendControls(chat_panel, message_entry)
+    backend = BackendControls(
+        chat_panel,
+        message_entry,
+        status_label=voice_status,
+        microphone_button=microphone_button,
+        microphone_icon=microphone_icon,
+        open_breaker_callback=on_open_breaker,
+    )
+
+    model_selector = customtkinter.CTkOptionMenu(
+        input_frame,
+        values=["Configure a model in Settings"],
+        command=backend.select_model,
+        width=154,
+        height=36,
+        fg_color=ELEVATED_SURFACE,
+        button_color=SECONDARY,
+        button_hover_color=PRIMARY,
+        text_color=TEXT,
+        dropdown_fg_color=SURFACE,
+        dropdown_hover_color=ELEVATED_SURFACE,
+        dropdown_text_color=TEXT,
+        font=("Segoe UI", 11),
+    )
+    model_selector.grid(row=0, column=1, padx=4, pady=10)
+    backend.attach_model_selector(model_selector)
+    microphone_button.configure(command=backend.dictate)
 
     message_row = 0
 
@@ -139,15 +209,18 @@ def show_chat_interface(parent):
         nonlocal message_row
 
         if sender == "user":
-            bubble_color = "#0E7490"
+            bubble_color = "#173C29"
+            message_text_color = TEXT
             message_alignment = "e"
 
         elif sender == "optimizer":
-            bubble_color = "#212121"
+            bubble_color = SURFACE
+            message_text_color = TEXT
             message_alignment = "w"
 
         else:
-            bubble_color = "#303030"
+            bubble_color = ELEVATED_SURFACE
+            message_text_color = TEXT
             message_alignment = "w"
 
         message_frame = customtkinter.CTkFrame(master = messages_container,
@@ -155,8 +228,8 @@ def show_chat_interface(parent):
                                                fg_color = bubble_color)
         message_frame.grid(row = message_row, column = 0, sticky = message_alignment, padx = 15, pady = 8)
 
-        message_label = customtkinter.CTkLabel(master = message_frame, text = text, text_color = "#F8FAFC",
-                                               wraplength = 500,
+        message_label = customtkinter.CTkLabel(master=message_frame, text=text, text_color=message_text_color,
+                                               wraplength=680,
                                                justify = "left")
         message_label.grid(row = 0, column = 0, padx = 15, pady = 10)
 
@@ -171,6 +244,7 @@ def show_chat_interface(parent):
         message_row = 0
 
     def show_selected_conversation():
+        nonlocal message_row
         clear_chat_display()
 
         selected_conversation = conversation_data.get_selected_conversation()
@@ -184,6 +258,17 @@ def show_chat_interface(parent):
         messages = conversation_data.get_selected_messages()
 
         if messages is None:
+            return
+
+        if not messages:
+            welcome_label = customtkinter.CTkLabel(
+                messages_container,
+                text="How can Optimizer help?",
+                text_color=TEXT,
+                font=("Segoe UI", 25, "bold"),
+            )
+            welcome_label.grid(row=0, column=0, pady=(110, 8))
+            message_row = 1
             return
 
         for message in messages:
@@ -230,13 +315,13 @@ def show_chat_interface(parent):
 
         instruction_label = customtkinter.CTkLabel(
             master = settings_window, text = "Shared Instructions",
-            text_color = "#F8FAFC"
+            text_color = TEXT
         )
         instruction_label.grid(row = 1, column = 0, sticky = 'w', padx = 20)
 
         instruction_box = customtkinter.CTkTextbox(
             master = settings_window, height = 150,
-            fg_color = "#262626", text_color = "#F8FAFC",
+            fg_color = SURFACE, text_color = TEXT,
             border_color = "#3A424E", border_width = 1,
             corner_radius = 8
         )
@@ -245,19 +330,19 @@ def show_chat_interface(parent):
 
         save_instructions_button = customtkinter.CTkButton(
             master = settings_window, text = "Save Instructions",
-            fg_color = "#0E7490", hover_color = "#155E75",
+            fg_color = SECONDARY, hover_color = PRIMARY,
             text_color = "#FFFFFF"
         )
         save_instructions_button.grid(row = 3, column = 0, sticky = 'e', padx = 20, pady = 5)
 
         knowledge_label = customtkinter.CTkLabel(
             master = settings_window, text = "Shared Knowledge",
-            text_color = "#F8FAFC"
+            text_color = TEXT
         )
         knowledge_label.grid(row = 4, column = 0, sticky = "w", padx = 20, pady = (15, 5))
 
         knowledge_scroll_frame = customtkinter.CTkScrollableFrame(
-            master = settings_window, fg_color = "#212121",
+            master = settings_window, fg_color = BACKGROUND,
             corner_radius = 8
         )
         knowledge_scroll_frame.grid(row = 5, column = 0, sticky = 'nsew', padx = 20, pady = 5)
@@ -277,20 +362,20 @@ def show_chat_interface(parent):
 
         note_entry = customtkinter.CTkEntry(
             master = add_note_frame, placeholder_text = "Add knowledge note...",
-            fg_color = "#262626", border_color = "#3A424E", text_color = "#F8FAFC"
+            fg_color = SURFACE, border_color = BORDER, text_color = TEXT
         )
         note_entry.grid(row = 0, column = 0, sticky = "ew", padx = (0, 8))
 
         add_note_button = customtkinter.CTkButton(
             master = add_note_frame, text = "+",
-            width = 40, height = 35, fg_color = "#0E7490",
-            hover_color = "#155E75", text_color = "#FFFFFF"
+            width = 40, height = 35, fg_color = SECONDARY,
+            hover_color = PRIMARY, text_color = BACKGROUND
         )
         add_note_button.grid(row = 0, column = 1)
 
         close_button = customtkinter.CTkButton(master = settings_window, text = "Close",
-                                               fg_color = "#303030", hover_color = "#404040",
-                                               text_color = "#F8FAFC")
+                                               fg_color = ELEVATED_SURFACE, hover_color = BORDER,
+                                               text_color = TEXT)
         close_button.grid(row = 7, column = 0, sticky = 'e', padx = 20, pady = 10)
 
         def on_save_instructions():
@@ -379,25 +464,25 @@ def show_chat_interface(parent):
             if not notes:
                 not_note_label = customtkinter.CTkLabel(master = knowledge_container,
                                                     text = "No knowledge notes yet.",
-                                                    text_color = "#A3A3A3")
+                                                    text_color = SECONDARY_TEXT)
                 not_note_label.grid(row = 0, column = 0)
 
                 return
 
             for index, note in enumerate(notes):
                 note_frame = customtkinter.CTkFrame(master = knowledge_container,
-                                                    fg_color = "#303030", corner_radius = 8)
+                                                    fg_color = ELEVATED_SURFACE, corner_radius = 8)
                 note_frame.grid(row = index, column = 0, sticky = 'ew', pady = 4)
                 note_frame.grid_columnconfigure(0, weight = 1)
 
                 note_label = customtkinter.CTkLabel(master = note_frame, text = note,
-                                                    text_color = '#F8FAFC', wraplength = 350,
+                                                    text_color = TEXT, wraplength = 350,
                                                     justify = "left", anchor = "w")
                 note_label.grid(row = 0, column = 0, sticky = "ew", padx = 10, pady = 8)
 
                 delete_button = customtkinter.CTkButton(master = note_frame, text = "✕",
-                                                        width = 32, height = 32, fg_color = "#303030",
-                                                        hover_color = "#7F1D1D", text_color = "#F8FAFC",
+                                                        width = 32, height = 32, fg_color = ELEVATED_SURFACE,
+                                                        hover_color = "#7F1D1D", text_color = TEXT,
                                                         command = lambda idx = index: on_remove_knowledge(idx))
                 delete_button.grid(row = 0, column = 1, padx = 6)
 
@@ -436,10 +521,10 @@ def show_chat_interface(parent):
             folder_frame.grid_columnconfigure(0, weight = 1)
 
             if folder_id == selected_folder_id:
-                folder_color = '#303030'
+                folder_color = ELEVATED_SURFACE
 
             else:
-                folder_color = "#171717"
+                folder_color = SIDEBAR
 
             if folder_id in expanded_folder_ids:
                 folder_arrow = "▾"
@@ -449,13 +534,13 @@ def show_chat_interface(parent):
 
             folder_button = customtkinter.CTkButton(master = folder_frame, text = folder_arrow + " " + folder_name,
                                                     fg_color = folder_color, hover_color = "#353535",
-                                                    text_color = "#F8FAFC", anchor = "w", corner_radius = 8,
+                                                    text_color = TEXT, anchor = "w", corner_radius = 8,
                                                     height = 34, command = lambda fid = folder_id: on_folder_clicked(fid))
             folder_button.grid(row = 0, column = 0, sticky = 'ew')
 
             settings_button = customtkinter.CTkButton(master = folder_frame, text = "⚙", width = 34, height = 34,
                                                       fg_color = "transparent", hover_color = "#353535",
-                                                      text_color = "#A3A3A3", corner_radius = 8, command = lambda fid = folder_id: open_folder_settings(fid))
+                                                      text_color = SECONDARY_TEXT, corner_radius = 8, command = lambda fid = folder_id: open_folder_settings(fid))
             settings_button.grid(row = 0, column = 1, sticky = 'e', padx = (4, 0))
 
             if folder_id in expanded_folder_ids:
@@ -468,11 +553,11 @@ def show_chat_interface(parent):
                     active_conversation_id = conversation_data.ACTIVE_SELECTION["conversation_id"]
 
                     if active_folder_id == folder_id and active_conversation_id == conversation_id:
-                        conversation_color = "#303030"
+                        conversation_color = ELEVATED_SURFACE
                         conversation_text_color = "#FFFFFF"
                     else:
                         conversation_color = "transparent"
-                        conversation_text_color = "#A3A3A3"
+                        conversation_text_color = SECONDARY_TEXT
 
                     conversation_button = customtkinter.CTkButton(master = folder_frame, text = conversation["title"],
                                                                   fg_color = conversation_color, hover_color = "#353535",
@@ -674,7 +759,7 @@ def show_chat_interface(parent):
 
                     if request_lifecycle.state != REQUEST_CLOSED:
                         generating_status.configure(text = "")
-                        send_button.configure(text = "⬆", state = "normal")
+                        send_button.configure(image=send_icon, state="normal")
 
         except queue.Empty:
             pass
@@ -784,7 +869,7 @@ def show_chat_interface(parent):
         model = backend.settings["selected_models"].get(provider)
         generating_status.configure(text=f"Generating with {provider}…")
 
-        send_button.configure(text = "⬆", state = "disabled")
+        send_button.configure(image=send_icon, state="disabled")
 
         thread = threading.Thread(
             target = run_ai_worker,
@@ -808,7 +893,7 @@ def show_chat_interface(parent):
             request_lifecycle.finish(request_id)
 
             generating_status.configure(text = "")
-            send_button.configure(text = "⬆", state = "normal")
+            send_button.configure(image=send_icon, state="normal")
 
             messagebox.showerror("Optimizer",
                                  "Could not start the AI request.")
@@ -823,3 +908,4 @@ def show_chat_interface(parent):
     show_selected_conversation()
 
     main_frame.after(100, check_ai_results)
+    return backend
